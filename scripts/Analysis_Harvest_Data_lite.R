@@ -1,10 +1,10 @@
 ### G. Montazeaud
-### 25/05/2020
 
-### Analysis of the SolACE 3 experimental data. 36 genotypes were grown in monocultures and in 54 two-way mixtures with two treatments (WW = non limiting water and nitrogen, WS = limiting water and nitrogen) in controled conditions (Dijon, 4PMI platform)
+### Analysis of wheat mixture experimental data. 36 genotypes were grown in monocultures and in 54 two-way mixtures with two treatments (WW = non limiting water and nitrogen, WS = limiting water and nitrogen) in controled conditions (Dijon, 4PMI platform)
 
+## Mixing varieties reduces root competition between wheat seedlings grown under resource-limited conditions
 ######################################
-### WORKING DIRECTORY AND PACKAGES ###
+### PACKAGES ###
 ######################################
 library(lme4)
 library(arm)
@@ -16,7 +16,7 @@ library(glmulti)
 library(ggpubr)
 
 ###########################################
-#### I. ANALYSIS AT THE INDIVIDUAL PLANT LEVEL
+#### I. ANALYZING DATA MEASURED AT THE INDIVIDUAL PLANT LEVEL
 ###########################################
 
 ### we here only consider harvest trait data, as root trait data is not available at the single plant level
@@ -24,7 +24,7 @@ library(ggpubr)
 ### Loading harvest data
 har <- read.table("data/raw_data/biomass_data/harvest_data.csv", header=T, sep=",")
 
-### Merging harvest data with leaf Nitrogen data
+### Merging harvest data with leaf Nitrogen data (measured with Near-Infrared Spectroscopy)
 leafN <- read.csv("data/processed_data/leafN_processed.csv", header=T)
 har <- merge(har,leafN, by=c("RT_ID","Plant_ID"),all.x=T)
 
@@ -35,45 +35,105 @@ har$Assoc <- as.factor(har$Assoc)
 har$Assoc = factor(har$Assoc,levels(har$Assoc)[c(2,1)])
 har$Repetition <- as.factor(har$Repetition)
 
-## Adding +1 tiller to all plants because so that the baseline tiller number is 1 and not 0
+## Adding +1 tiller to all plants so that the baseline tiller number is 1 and not 0
 har$Tiller_nb = har$Tiller_nb+1
 
 ### Data distribution
 png("outputs/plots/single_plant_trait_distribution.png", width=1000, height=800, res=160)
 par(mfrow=c(3,3), mar=c(4,5,4,1))
 
-hist(har$Leaf_nb_main_stem, las=1, main="Nb of leaves \n on the main stem", xlab="", ylab="Nb of obs", col="grey",border="white", ylim=c(0,2200))
 missing <- format(round(sum(is.na(har$Leaf_nb_main_stem))/nrow(har)*100,2), nsmall=2)
-legend("topleft", legend=c(paste("N obs = ",nrow(har)), paste("%NA = ", missing, sep="")), bty="n")
+plt_leaf <- ggplot(har, aes(x=Leaf_nb_main_stem)) +
+  geom_histogram(binwidth=1, colour="black", fill="grey")+
+  labs(x="Nb leaves on the main stem",
+       y="Nb obs")+
+  annotate("text",
+           label=c(paste("N obs = ",nrow(har)), paste("%NA = ", missing, sep="")),
+           x=0,
+           y=c(2000,0.95*2000),
+           hjust=0)+
+  theme_bw()
 
-hist(har$Tiller_nb, las=1, main="Nb of tillers", xlab="", ylab="Nb of obs", col="grey",border="white", ylim=c(0,2000))
 missing <- format(round(sum(is.na(har$Tiller_nb))/nrow(har)*100,2), nsmall=2)
-legend("topleft", legend=c(paste("N obs = ",nrow(har)), paste("%NA = ", missing, sep="")), bty="n")
+plt_tiller <- ggplot(har, aes(x=Tiller_nb)) +
+  geom_histogram(binwidth=1, colour="black", fill="grey")+
+  labs(x="Nb of tillers",
+       y="Nb obs")+
+  annotate("text",
+           label=c(paste("N obs = ",nrow(har)), paste("%NA = ", missing, sep="")),
+           x=1,
+           y=c(1900,0.95*1900),
+           hjust=0)+
+  theme_bw()
 
-hist(har$Root_Shoot_Ratio, las=1, main="Root:Shoot ratio", xlab="", ylab="Nb of obs",col="grey",border="white", ylim=c(0,1600))
-missing <- format(round(sum(is.na(har$Root_Shoot_Ratio))/nrow(har)*100,2), nsmall=2)
-legend("topleft", legend=c(paste("N obs = ",nrow(har)), paste("%NA = ", missing, sep="")), bty="n")
-
-hist(har$Shoot_DW, las=1, main="Shoot biomass (mg)", xlab="", ylab="Nb of obs",col="grey",border="white", ylim=c(0,900))
-missing <- format(round(sum(is.na(har$Shoot_DW))/nrow(har)*100,2), nsmall=2)
-legend("topleft", legend=c(paste("N obs = ",nrow(har)), paste("%NA = ", missing, sep="")), bty="n")
-
-hist(har$Root_DW, las=1, main="Root biomass (mg)", xlab="", ylab="Nb of obs",col="grey",border="white", ylim=c(0,900), breaks=seq(0,400, by=25))
-missing <- format(round(sum(is.na(har$Root_DW))/nrow(har)*100,2), nsmall=2)
-legend("topleft", legend=c(paste("N obs = ",nrow(har)), paste("%NA = ", missing, sep="")), bty="n")
-
-hist(har$Total_DW, las=1, main="Total biomass (mg)", xlab="", ylab="Nb of obs",col="grey",border="white", ylim=c(0,900))
-missing <- format(round(sum(is.na(har$Total_DW))/nrow(har)*100,2), nsmall=2)
-legend("topleft", legend=c(paste("N obs = ",nrow(har)), paste("%NA = ", missing, sep="")), bty="n")
-
-hist(har$leaf_N, las=1, main="Leaf nitrogen content (%)", xlab="", ylab="Nb of obs",col="grey",border="white", ylim=c(0,900))
 missing <- format(round(sum(is.na(har$leaf_N))/nrow(har)*100,2), nsmall=2)
-legend("topleft", legend=c(paste("N obs = ",nrow(har)), paste("%NA = ", missing, sep="")), bty="n")
-dev.off()
+plt_leafN <- ggplot(har, aes(x=leaf_N)) +
+  geom_histogram(binwidth=0.1, colour="black", fill="grey")+
+  labs(x="Leaf nitrogen content (%)",
+       y="Nb obs")+
+  annotate("text",
+           label=c(paste("N obs = ",nrow(har)), paste("%NA = ", missing, sep="")),
+           x=2,
+           y=c(500,0.95*500),
+           hjust=0)+
+  theme_bw()
+
+missing <- format(round(sum(is.na(har$Root_Shoot_Ratio))/nrow(har)*100,2), nsmall=2)
+plt_RSratio <- ggplot(har, aes(x=Root_Shoot_Ratio)) +
+  geom_histogram(binwidth=0.1, colour="black", fill="grey")+
+  labs(x="Root:Shoot ratio",
+       y="Nb obs")+
+  annotate("text",
+           label=c(paste("N obs = ",nrow(har)), paste("%NA = ", missing, sep="")),
+           x=0,
+           y=c(800,0.95*800),
+           hjust=0)+
+  theme_bw()
+
+missing <- format(round(sum(is.na(har$Shoot_DW))/nrow(har)*100,2), nsmall=2)
+plt_Shoot_DW <- ggplot(har, aes(x=Shoot_DW)) +
+  geom_histogram(binwidth=25, colour="black", fill="grey")+
+  labs(x="Shoot biomass (mg)",
+       y="Nb obs")+
+  annotate("text",
+           label=c(paste("N obs = ",nrow(har)), paste("%NA = ", missing, sep="")),
+           x=0,
+           y=c(500,0.95*500),
+           hjust=0)+
+  theme_bw()
+
+missing <- format(round(sum(is.na(har$Root_DW))/nrow(har)*100,2), nsmall=2)
+plt_Root_DW <- ggplot(har, aes(x=Root_DW)) +
+  geom_histogram(binwidth=25, colour="black", fill="grey")+
+  labs(x="Root biomass (mg)",
+       y="Nb obs")+
+  annotate("text",
+           label=c(paste("N obs = ",nrow(har)), paste("%NA = ", missing, sep="")),
+           x=0,
+           y=c(800,0.95*800),
+           hjust=0)+
+  theme_bw()
+
+missing <- format(round(sum(is.na(har$Total_DW))/nrow(har)*100,2), nsmall=2)
+plt_Total_DW <- ggplot(har, aes(x=Total_DW)) +
+  geom_histogram(binwidth=50, colour="black", fill="grey")+
+  labs(x="Total biomass (mg)",
+       y="Nb obs")+
+  annotate("text",
+           label=c(paste("N obs = ",nrow(har)), paste("%NA = ", missing, sep="")),
+           x=0,
+           y=c(700,0.95*700),
+           hjust=0)+
+  theme_bw()
+
+plot_grid(plotlist = list(plt_leaf, plt_tiller, plt_leafN, plt_RSratio, plt_Shoot_DW, plt_Root_DW, plt_Total_DW),
+          nrow=2,
+          ncol = 4)
+ggsave("outputs/plots/single_plant_trait_distribution.pdf", dpi=300, height=8, width=10)
+
 
 ## Checking 2 plants with very high R:S ratios
 har[which(har$Root_Shoot_Ratio>2),]
-
 
 ## Checking data quality (comments on plant damages, missing plants, etc)
 summary(har)
@@ -109,256 +169,9 @@ panel.cor <- function(x, y, digits=2, prefix="", cex.cor)
 }
 
 
-png("outputs/plots/pairwise_correlations.png", height=600, width=1000, res=100)
+pdf("outputs/plots/pairwise_correlations.pdf", pointsize = 2)
 par(cex.axis=1.5, las=1, pch=19)
-pairs(har[,c("Leaf_nb_main_stem","Tiller_nb","Root_Shoot_Ratio","Shoot_DW","Root_DW","Total_DW", "leaf_N")], upper.panel = panel.cor, lower.panel = panel.smooth, labels=c("Nb of leaves\non the main stem", "Nb of tillers","R:S Ratio","Shoot\nbiomass (mg)","Root\nbiomass (mg)","Total\nbiomass (mg)", "Leaf N\ncontent (%)"), cex.labels=1.5)
-dev.off()
-
-## Statistical analysis (response variable to changed)
-mod <- lmer(leaf_N ~  Treatment + Treatment/Repetition + Assoc + Day_leafN_measurement + Treatment:Assoc + (1+Treatment|Focal) + (1|RT_ID) , data=har)
-summary(mod)  
-anova(mod, ddf="Kenward-Roger")
-
-
-set.seed(2027)
-smod <- sim(mod, 5000)
-svar_RT <- apply(smod@ranef$RT_ID[,,1],1,var)
-svar_intercept <- apply(smod@ranef$Focal[,,1],1,var)
-svar_slope <- apply(smod@ranef$Focal[,,2],1,var)
-
-lme4::VarCorr(mod)
-
-quantile(svar_intercept, c(0.025, 0.975))
-quantile(svar_slope, c(0.025, 0.975))
-quantile(svar_RT, c(0.025, 0.975))
-
-## Plotting the effet of the treatment on aboveground traits
-png("outputs/plots/individual_RAW_treatment.png",width=800, height=800, res=100)
-
-plt_spl_1 <- ggplot(data = har, aes(x=Treatment, y=Leaf_nb_main_stem)) + 
-  geom_boxplot() + 
-  labs(y = "Leaf_nb_main_stem",
-       x = "") +
-  theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5), margin=margin(r=1)), axis.title.x= element_text(size=rel(1.2), margin=margin(t=20)), axis.title.y= element_text(size=rel(1.2), margin=margin(r=20)), plot.margin = unit(c(0, 2, 0, 2),"cm"))
-
-plt_spl_2 <- ggplot(data = har, aes(x=Treatment, y=Tiller_nb)) + 
-  geom_boxplot() + 
-  labs(y = "Tiller_nb",
-       x = "") +
-  theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5), margin=margin(r=1)), axis.title.x= element_text(size=rel(1.2), margin=margin(t=20)), axis.title.y= element_text(size=rel(1.2), margin=margin(r=20)), plot.margin = unit(c(0, 2, 0, 2),"cm"))
-
-
-plt_spl_3 <- ggplot(data = har, aes(x=Treatment, y=Root_Shoot_Ratio)) + 
-  geom_boxplot() + 
-  labs(y = "Root_Shoot_Ratio",
-       x = "") +
-  theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5), margin=margin(r=1)), axis.title.x= element_text(size=rel(1.2), margin=margin(t=20)), axis.title.y= element_text(size=rel(1.2), margin=margin(r=20)), plot.margin = unit(c(0, 2, 0, 2),"cm"))
-
-plt_spl_4 <- ggplot(data = har, aes(x=Treatment, y=Shoot_DW)) + 
-  geom_boxplot() + 
-  labs(y = "Shoot_DW",
-       x = "") +
-  theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5), margin=margin(r=1)), axis.title.x= element_text(size=rel(1.2), margin=margin(t=20)), axis.title.y= element_text(size=rel(1.2), margin=margin(r=20)), plot.margin = unit(c(0, 2, 0, 2),"cm"))
-
-plt_spl_5 <- ggplot(data = har, aes(x=Treatment, y=Root_DW)) + 
-  geom_boxplot() + 
-  labs(y = "Root_DW",
-       x = "") +
-  theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5), margin=margin(r=1)), axis.title.x= element_text(size=rel(1.2), margin=margin(t=20)), axis.title.y= element_text(size=rel(1.2), margin=margin(r=20)), plot.margin = unit(c(0, 2, 0, 2),"cm"))
-
-plt_spl_6 <- ggplot(data = har, aes(x=Treatment, y=Total_DW)) + 
-  geom_boxplot() + 
-  labs(y = "Total_DW",
-       x = "") +
-  theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5), margin=margin(r=1)), axis.title.x= element_text(size=rel(1.2), margin=margin(t=20)), axis.title.y= element_text(size=rel(1.2), margin=margin(r=20)), plot.margin = unit(c(0, 2, 0, 2),"cm"))
-
-plt_spl_7 <- ggplot(data = har, aes(x=Treatment, y=leaf_N)) + 
-  geom_boxplot() + 
-  labs(y = "Leaf N",
-       x = "") +
-  theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5), margin=margin(r=1)), axis.title.x= element_text(size=rel(1.2), margin=margin(t=20)), axis.title.y= element_text(size=rel(1.2), margin=margin(r=20)), plot.margin = unit(c(0, 2, 0, 2),"cm"))
-
-plot_grid(plt_spl_1, plt_spl_4, plt_spl_2, plt_spl_5, plt_spl_3, plt_spl_6,plt_spl_7, align = "hv", nrow = 4, ncol=2)
-
-dev.off()
-
-
-## Plotting the effect of the sampling date on different above ground traits
-har$Sampling_ID <-as.factor(har$Sampling_ID)
-har$Day_leafN_measurement <-as.factor(har$Day_leafN_measurement)
-
-png("outputs/plots/individual_RAW_sampling_id.png",width=800, height=800, res=100)
-
-plt_spl_1 <- ggplot(data = har, aes(x=Sampling_ID, y=Leaf_nb_main_stem)) + 
-  geom_boxplot() + 
-  facet_grid(. ~ Treatment) +
-  labs(y = "Leaf_nb_main_stem",
-       x = "") +
-  theme(strip.text = element_text(size = rel(1), color="white", face="bold"), strip.background = element_rect(fill="black"),
-        panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5), margin=margin(r=1)), axis.title.x= element_text(size=rel(1.2), margin=margin(t=20)), axis.title.y= element_text(size=rel(1.2), margin=margin(r=20)), plot.margin = unit(c(0, 0, 0, 1),"cm"))
-
-plt_spl_2 <- ggplot(data = har, aes(x=Sampling_ID, y=Tiller_nb)) + 
-  geom_boxplot() + 
-  facet_grid(. ~ Treatment) +
-  labs(y = "Tiller_nb",
-       x = "") +
-  theme(strip.text = element_text(size = rel(1), color="white", face="bold"), strip.background = element_rect(fill="black"), panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5), margin=margin(r=1)), axis.title.x= element_text(size=rel(1.2), margin=margin(t=20)), axis.title.y= element_text(size=rel(1.2), margin=margin(r=20)), plot.margin = unit(c(0, 0, 0, 1),"cm"))
-
-plt_spl_3 <- ggplot(data = har, aes(x=Sampling_ID, y=Root_Shoot_Ratio)) + 
-  geom_boxplot() + 
-  facet_grid(. ~ Treatment) +
-  labs(y = "Root:Shoot Ratio",
-       x = "Sampling_ID") +
-  theme(strip.text = element_text(size = rel(1), color="white", face="bold"), strip.background = element_rect(fill="black"),panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5), margin=margin(r=1)), axis.title.x= element_text(size=rel(1.2), margin=margin(t=10)), axis.title.y= element_text(size=rel(1.2), margin=margin(r=20)), plot.margin = unit(c(0, 0, 0, 1),"cm"))
-
-plt_spl_4 <- ggplot(data = har, aes(x=Sampling_ID, y=Shoot_DW)) + 
-  geom_boxplot() + 
-  facet_grid(. ~ Treatment) +
-  labs(y = "Shoot_DW (mg)",
-       x = "") +
-  theme(strip.text = element_text(size = rel(1), color="white", face="bold"), strip.background = element_rect(fill="black"), panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5), margin=margin(r=1)), axis.title.x= element_text(size=rel(1.2), margin=margin(t=20)), axis.title.y= element_text(size=rel(1.2), margin=margin(r=20)), plot.margin = unit(c(0, 0, 0, 1),"cm"))
-
-plt_spl_5 <- ggplot(data = har, aes(x=Sampling_ID, y=Root_DW)) + 
-  geom_boxplot() + 
-  facet_grid(. ~ Treatment) +
-  labs(y = "Root_DW (mg)",
-       x = "") +
-  theme(strip.text = element_text(size = rel(1), color="white", face="bold"), strip.background = element_rect(fill="black"), panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5), margin=margin(r=1)), axis.title.x= element_text(size=rel(1.2), margin=margin(t=20)), axis.title.y= element_text(size=rel(1.2), margin=margin(r=20)), plot.margin = unit(c(0, 0, 0, 1),"cm"))
-
-plt_spl_6 <- ggplot(data = har, aes(x=Sampling_ID, y=Total_DW)) + 
-  geom_boxplot() + 
-  facet_grid(. ~ Treatment) +
-  labs(y = "Total_DW (mg)",
-       x = "Sampling_ID") +
-  theme(strip.text = element_text(size = rel(1), color="white", face="bold"), strip.background = element_rect(fill="black"),panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5), margin=margin(r=1)), axis.title.x= element_text(size=rel(1.2), margin=margin(t=10)), axis.title.y= element_text(size=rel(1.2), margin=margin(r=20)), plot.margin = unit(c(0, 0, 0, 1),"cm"))
-
-plt_spl_7 <- ggplot(data = har, aes(x=Day_leafN_measurement, y=leaf_N)) + 
-  geom_boxplot() + 
-  facet_grid(. ~ Treatment) +
-  labs(y = "Leaf N (%)",
-       x = "Sampling day") +
-  theme(strip.text = element_text(size = rel(1), color="white", face="bold"), strip.background = element_rect(fill="black"),panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5), margin=margin(r=1)), axis.title.x= element_text(size=rel(1.2), margin=margin(t=10)), axis.title.y= element_text(size=rel(1.2), margin=margin(r=20)), plot.margin = unit(c(0, 0, 0, 1),"cm"))
-
-plot_grid(plt_spl_1, plt_spl_4, plt_spl_2, plt_spl_5, plt_spl_3, plt_spl_6,plt_spl_7, align = "hv", nrow = 4, ncol=2)
-dev.off()
-
-
-## Plotting the effect of the different blocks (replicates) on aboveground traits
-har$Repetition <- as.factor(har$Repetition)
-png("outputs/plots/individual_RAW_Repetition.png",width=800, height=800, res=100)
-
-plt_spl_1 <- ggplot(data = har, aes(x=Repetition, y=Leaf_nb_main_stem)) + 
-  geom_boxplot() + 
-  facet_grid(. ~ Treatment) +
-  labs(y = "Leaf_nb_main_stem",
-       x = "") +
-  theme(strip.text = element_text(size = rel(1), color="white", face="bold"), strip.background = element_rect(fill="black"),
-        panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5), margin=margin(r=1)), axis.title.x= element_text(size=rel(1.2), margin=margin(t=20)), axis.title.y= element_text(size=rel(1.2), margin=margin(r=20)), plot.margin = unit(c(0, 0, 0, 1),"cm"))
-
-plt_spl_2 <- ggplot(data = har, aes(x=Repetition, y=Tiller_nb)) + 
-  geom_boxplot() + 
-  facet_grid(. ~ Treatment) +
-  labs(y = "Tiller_nb",
-       x = "") +
-  theme(strip.text = element_text(size = rel(1), color="white", face="bold"), strip.background = element_rect(fill="black"), panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5), margin=margin(r=1)), axis.title.x= element_text(size=rel(1.2), margin=margin(t=20)), axis.title.y= element_text(size=rel(1.2), margin=margin(r=20)), plot.margin = unit(c(0, 0, 0, 1),"cm"))
-
-plt_spl_3 <- ggplot(data = har, aes(x=Repetition, y=Root_Shoot_Ratio)) + 
-  geom_boxplot() + 
-  facet_grid(. ~ Treatment) +
-  labs(y = "Root:Shoot Ratio",
-       x = "Repetition") +
-  theme(strip.text = element_text(size = rel(1), color="white", face="bold"), strip.background = element_rect(fill="black"),panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5), margin=margin(r=1)), axis.title.x= element_text(size=rel(1.2), margin=margin(t=10)), axis.title.y= element_text(size=rel(1.2), margin=margin(r=20)), plot.margin = unit(c(0, 0, 0, 1),"cm"))
-
-plt_spl_4 <- ggplot(data = har, aes(x=Repetition, y=Shoot_DW)) + 
-  geom_boxplot() + 
-  facet_grid(. ~ Treatment) +
-  labs(y = "Shoot_DW (mg)",
-       x = "") +
-  theme(strip.text = element_text(size = rel(1), color="white", face="bold"), strip.background = element_rect(fill="black"), panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5), margin=margin(r=1)), axis.title.x= element_text(size=rel(1.2), margin=margin(t=20)), axis.title.y= element_text(size=rel(1.2), margin=margin(r=20)), plot.margin = unit(c(0, 0, 0, 1),"cm"))
-
-plt_spl_5 <- ggplot(data = har, aes(x=Repetition, y=Root_DW)) + 
-  geom_boxplot() + 
-  facet_grid(. ~ Treatment) +
-  labs(y = "Root_DW (mg)",
-       x = "") +
-  theme(strip.text = element_text(size = rel(1), color="white", face="bold"), strip.background = element_rect(fill="black"), panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5), margin=margin(r=1)), axis.title.x= element_text(size=rel(1.2), margin=margin(t=20)), axis.title.y= element_text(size=rel(1.2), margin=margin(r=20)), plot.margin = unit(c(0, 0, 0, 1),"cm"))
-
-plt_spl_6 <- ggplot(data = har, aes(x=Repetition, y=Total_DW)) + 
-  geom_boxplot() + 
-  facet_grid(. ~ Treatment) +
-  labs(y = "Total_DW (mg)",
-       x = "Repetition") +
-  theme(strip.text = element_text(size = rel(1), color="white", face="bold"), strip.background = element_rect(fill="black"),panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5), margin=margin(r=1)), axis.title.x= element_text(size=rel(1.2), margin=margin(t=10)), axis.title.y= element_text(size=rel(1.2), margin=margin(r=20)), plot.margin = unit(c(0, 0, 0, 1),"cm"))
-
-plt_spl_7 <- ggplot(data = har, aes(x=Repetition, y=leaf_N)) + 
-  geom_boxplot() + 
-  facet_grid(. ~ Treatment) +
-  labs(y = "Leaf N (%)",
-       x = "Repetition") +
-  theme(strip.text = element_text(size = rel(1), color="white", face="bold"), strip.background = element_rect(fill="black"),panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5), margin=margin(r=1)), axis.title.x= element_text(size=rel(1.2), margin=margin(t=10)), axis.title.y= element_text(size=rel(1.2), margin=margin(r=20)), plot.margin = unit(c(0, 0, 0, 1),"cm"))
-
-
-plot_grid(plt_spl_1, plt_spl_4, plt_spl_2, plt_spl_5, plt_spl_3, plt_spl_6,plt_spl_7, align = "hv", nrow = 4, ncol=2)
-
-dev.off()
-
-
-## Plotting the effect of the association type (Mono vs Mixt) on the different aboveground traits
-png("outputs/plots/individual_RAW_Assoc.png",width=800, height=800, res=100)
-
-plt_spl_1 <- ggplot(data = har, aes(x=Assoc, y=Leaf_nb_main_stem)) + 
-  geom_boxplot() + 
-  facet_grid(. ~ Treatment) +
-  labs(y = "Leaf_nb_main_stem",
-       x = "") +
-  theme(strip.text = element_text(size = rel(1), color="white", face="bold"), strip.background = element_rect(fill="black"),
-        panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5), margin=margin(r=1)), axis.title.x= element_text(size=rel(1.2), margin=margin(t=20)), axis.title.y= element_text(size=rel(1.2), margin=margin(r=20)), plot.margin = unit(c(0, 0, 0, 1),"cm"))
-
-plt_spl_2 <- ggplot(data = har, aes(x=Assoc, y=Tiller_nb)) + 
-  geom_boxplot() + 
-  facet_grid(. ~ Treatment) +
-  labs(y = "Tiller_nb",
-       x = "") +
-  theme(strip.text = element_text(size = rel(1), color="white", face="bold"), strip.background = element_rect(fill="black"), panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5), margin=margin(r=1)), axis.title.x= element_text(size=rel(1.2), margin=margin(t=20)), axis.title.y= element_text(size=rel(1.2), margin=margin(r=20)), plot.margin = unit(c(0, 0, 0, 1),"cm"))
-
-plt_spl_3 <- ggplot(data = har, aes(x=Assoc, y=Root_Shoot_Ratio)) + 
-  geom_boxplot() + 
-  facet_grid(. ~ Treatment) +
-  labs(y = "Root:Shoot Ratio",
-       x = "Association") +
-  theme(strip.text = element_text(size = rel(1), color="white", face="bold"), strip.background = element_rect(fill="black"),panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5), margin=margin(r=1)), axis.title.x= element_text(size=rel(1.2), margin=margin(t=10)), axis.title.y= element_text(size=rel(1.2), margin=margin(r=20)), plot.margin = unit(c(0, 0, 0, 1),"cm"))
-
-plt_spl_4 <- ggplot(data = har, aes(x=Assoc, y=Shoot_DW)) + 
-  geom_boxplot() + 
-  facet_grid(. ~ Treatment) +
-  labs(y = "Shoot_DW (mg)",
-       x = "") +
-  theme(strip.text = element_text(size = rel(1), color="white", face="bold"), strip.background = element_rect(fill="black"), panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5), margin=margin(r=1)), axis.title.x= element_text(size=rel(1.2), margin=margin(t=20)), axis.title.y= element_text(size=rel(1.2), margin=margin(r=20)), plot.margin = unit(c(0, 0, 0, 1),"cm"))
-
-plt_spl_5 <- ggplot(data = har, aes(x=Assoc, y=Root_DW)) + 
-  geom_boxplot() + 
-  facet_grid(. ~ Treatment) +
-  labs(y = "Root_DW (mg)",
-       x = "") +
-  theme(strip.text = element_text(size = rel(1), color="white", face="bold"), strip.background = element_rect(fill="black"), panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5), margin=margin(r=1)), axis.title.x= element_text(size=rel(1.2), margin=margin(t=20)), axis.title.y= element_text(size=rel(1.2), margin=margin(r=20)), plot.margin = unit(c(0, 0, 0, 1),"cm"))
-
-plt_spl_6 <- ggplot(data = har, aes(x=Assoc, y=Total_DW)) + 
-  geom_boxplot() + 
-  facet_grid(. ~ Treatment) +
-  labs(y = "Total_DW (mg)",
-       x = "Association") +
-  theme(strip.text = element_text(size = rel(1), color="white", face="bold"), strip.background = element_rect(fill="black"),panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5), margin=margin(r=1)), axis.title.x= element_text(size=rel(1.2), margin=margin(t=10)), axis.title.y= element_text(size=rel(1.2), margin=margin(r=20)), plot.margin = unit(c(0, 0, 0, 1),"cm"))
-
-plt_spl_7 <- ggplot(data = har, aes(x=Assoc, y=leaf_N)) + 
-  geom_boxplot() + 
-  facet_grid(. ~ Treatment) +
-  labs(y = "Leaf N (%)",
-       x = "Association") +
-  theme(strip.text = element_text(size = rel(1), color="white", face="bold"), strip.background = element_rect(fill="black"),panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5), margin=margin(r=1)), axis.title.x= element_text(size=rel(1.2), margin=margin(t=10)), axis.title.y= element_text(size=rel(1.2), margin=margin(r=20)), plot.margin = unit(c(0, 0, 0, 1),"cm"))
-
-
-plot_grid(plt_spl_1, plt_spl_4, plt_spl_2, plt_spl_5, plt_spl_3, plt_spl_6,plt_spl_7, align = "hv", nrow = 4, ncol=2)
-
+pairs(har[,c("Leaf_nb_main_stem","Tiller_nb","leaf_N", "Root_Shoot_Ratio","Shoot_DW","Root_DW","Total_DW")], upper.panel = panel.cor, lower.panel = panel.smooth, labels=c("Nb  leaves\non the main stem", "Nb  tillers", "Leaf N\ncontent (%)", "R:S Ratio","Shoot\nbiomass (mg)","Root\nbiomass (mg)","Total\nbiomass (mg)"), cex.labels=1.9)
 dev.off()
 
 
@@ -370,9 +183,9 @@ dev.off()
 ### INTEGRATION OF ROOT TRAIT DATA ###
 ################################
 
-all_root_trait_d3 <- read.csv("data/processed_data/Root_traits_D3.csv", header=T)
+all_root_trait <- read.csv("data/processed_data/Root_traits_D3.csv", header=T)
 
-########## MERGING ROOT TRAIT DATA AT DATE 3 AND ABOVEGROUND DATA
+########## MERGING ROOT TRAIT DATA AND ABOVEGROUND DATA
 
 ## Summing all aboveground trait (but leafN) per RT and per genotype
 har_ag <- aggregate(.~RT_ID+Assoc+Treatment+Repetition+Sampling_ID, data=har[,-which(colnames(har)%in%c("Plant_ID","Root_Shoot_Ratio","Comments","Focal","Neighbour","leaf_N","Day_leafN_measurement"))], FUN=sum)
@@ -385,385 +198,447 @@ leafN_ag <- aggregate(leaf_N~RT_ID+Assoc+Treatment+Repetition+Day_leafN_measurem
 har_ag <- merge(har_ag,leafN_ag,by=c("RT_ID", "Assoc", "Treatment", "Repetition"), all.x=T)
 
 ## merging above and belowground data
-all_trait <- merge(har_ag, all_root_trait_d3, by=c("RT_ID", "Assoc", "Treatment", "Repetition"))
+all_trait <- merge(har_ag, all_root_trait, by=c("RT_ID", "Assoc", "Treatment", "Repetition"))
 
 ## Reordering columns
 all_trait <- all_trait[,c(20,1:13,17:19)]
 
 ## Plotting pot-level trait distribution
-png("outputs/plots/group_RAW_data_distribution.png", width=1000, height=1000, res=150)
-par(mfrow=c(4,3), mar=c(4,5,4,1))
-
-hist(all_trait$Leaf_nb_main_stem, las=1, main="Nb of leaves \n on the main stem", xlab="", ylab="Nb of obs", col="grey",border="white", ylim=c(0,300), xlim=c(15,40), breaks = seq(15,40, by=2.5))
 missing <- format(round(sum(is.na(all_trait$Leaf_nb_main_stem))/nrow(all_trait)*100,2), nsmall=2)
-legend("topleft", legend=c(paste("N obs = ",nrow(all_trait)), paste("%NA = ", missing, sep="")), bty="n")
+plt_leaf <- ggplot(all_trait, aes(x=Leaf_nb_main_stem)) +
+  geom_histogram(binwidth=1, colour="black", fill="grey")+
+  labs(x="Nb leaves on the main stem",
+       y="Nb obs")+
+  annotate("text",
+           label=c(paste("N obs = ",nrow(all_trait)), paste("%NA = ", missing, sep="")),
+           x=10,
+           y=c(125,0.9*125),
+           hjust=0)+
+  theme_bw()
 
-hist(all_trait$Tiller_nb, las=1, main="Nb of tillers", xlab="", ylab="Nb of obs", col="grey",border="white", ylim=c(0,200), xlim=c(0,35), breaks = seq(0,35, by=2.5))
-missing <- format(round(sum(is.na(all_trait$Leaf_nb_main_stem))/nrow(all_trait)*100,2), nsmall=2)
-legend("topleft", legend=c(paste("N obs = ",nrow(all_trait)), paste("%NA = ", missing, sep="")), bty="n")
 
-hist(all_trait$leaf_N, las=1, main="Leaf N (%)", xlab="", ylab="Nb of obs", col="grey",border="white")
+missing <- format(round(sum(is.na(all_trait$Tiller_nb))/nrow(all_trait)*100,2), nsmall=2)
+plt_tiller <- ggplot(all_trait, aes(x=Tiller_nb)) +
+  geom_histogram(binwidth=1, colour="black", fill="grey")+
+  labs(x="Nb of tillers",
+       y="Nb obs")+
+  annotate("text",
+           label=c(paste("N obs = ",nrow(all_trait)), paste("%NA = ", missing, sep="")),
+           x=0,
+           y=c(100,0.9*100),
+           hjust=0)+
+  theme_bw()
+
 missing <- format(round(sum(is.na(all_trait$leaf_N))/nrow(all_trait)*100,2), nsmall=2)
-legend("topleft", legend=c(paste("N obs = ",nrow(all_trait)), paste("%NA = ", missing, sep="")), bty="n")
+plt_leafN <- ggplot(all_trait, aes(x=leaf_N)) +
+  geom_histogram(binwidth=0.1, colour="black", fill="grey")+
+  labs(x="Leaf N (%)",
+       y="Nb obs")+
+  annotate("text",
+           label=c(paste("N obs = ",nrow(all_trait)), paste("%NA = ", missing, sep="")),
+           x=2,
+           y=c(110,0.9*110),
+           hjust=0)+
+  theme_bw()
 
-hist(all_trait$Root_Shoot_Ratio, las=1, main="Root:Shoot Ratio", xlab="", ylab="Nb of obs", col="grey",border="white", xlim=c(0,1.3), breaks = seq(0,1.3, by=0.1), ylim=c(0,200))
 missing <- format(round(sum(is.na(all_trait$Root_Shoot_Ratio))/nrow(all_trait)*100,2), nsmall=2)
-legend("topleft", legend=c(paste("N obs = ",nrow(all_trait)), paste("%NA = ", missing, sep="")), bty="n")
+plt_RSratio <- ggplot(all_trait, aes(x=Root_Shoot_Ratio)) +
+  geom_histogram(binwidth=0.1, colour="black", fill="grey")+
+  labs(x="Root:Shoot ratio",
+       y="Nb obs")+
+  annotate("text",
+           label=c(paste("N obs = ",nrow(all_trait)), paste("%NA = ", missing, sep="")),
+           x=0,
+           y=c(190,0.9*190),
+           hjust=0)+
+  theme_bw()
 
-hist(all_trait$Shoot_DW, las=1, main="Shoot biomass (mg)", xlab="", ylab="Nb of obs", col="grey",border="white", ylim=c(0,200), xlim=c(300,3000), breaks = seq(300,3000, by=300))
 missing <- format(round(sum(is.na(all_trait$Shoot_DW))/nrow(all_trait)*100,2), nsmall=2)
-legend("topleft", legend=c(paste("N obs = ",nrow(all_trait)), paste("%NA = ", missing, sep="")), bty="n")
+plt_Shoot_DW <- ggplot(all_trait, aes(x=Shoot_DW)) +
+  geom_histogram(binwidth=100, colour="black", fill="grey")+
+  labs(x="Shoot biomass (mg)",
+       y="Nb obs")+
+  annotate("text",
+           label=c(paste("N obs = ",nrow(all_trait)), paste("%NA = ", missing, sep="")),
+           x=0,
+           y=c(90,0.9*90),
+           hjust=0)+
+  theme_bw()
 
-hist(all_trait$Root_DW, las=1, main="Root biomass (mg)", xlab="", ylab="Nb of obs", col="grey",border="white", ylim=c(0,200), xlim=c(300,1500), breaks = seq(300,1500, by=100))
+
 missing <- format(round(sum(is.na(all_trait$Root_DW))/nrow(all_trait)*100,2), nsmall=2)
-legend("topleft", legend=c(paste("N obs = ",nrow(all_trait)), paste("%NA = ", missing, sep="")), bty="n")
+plt_Root_DW <- ggplot(all_trait, aes(x=Root_DW)) +
+  geom_histogram(binwidth=100, colour="black", fill="grey")+
+  labs(x="Root biomass (mg)",
+       y="Nb obs")+
+  annotate("text",
+           label=c(paste("N obs = ",nrow(all_trait)), paste("%NA = ", missing, sep="")),
+           x=0,
+           y=c(140,0.9*140),
+           hjust=0)+
+  theme_bw()
 
-hist(all_trait$Total_DW, las=1, main="Total biomass (mg)", xlab="", ylab="Nb of obs", col="grey",border="white", ylim=c(0,200), xlim=c(700,4400), breaks = seq(700,4400, by=300))
 missing <- format(round(sum(is.na(all_trait$Total_DW))/nrow(all_trait)*100,2), nsmall=2)
-legend("topleft", legend=c(paste("N obs = ",nrow(all_trait)), paste("%NA = ", missing, sep="")), bty="n")
+plt_Total_DW <- ggplot(all_trait, aes(x=Total_DW)) +
+  geom_histogram(binwidth=200, colour="black", fill="grey")+
+  labs(x="Total biomass (mg)",
+       y="Nb obs")+
+  annotate("text",
+           label=c(paste("N obs = ",nrow(all_trait)), paste("%NA = ", missing, sep="")),
+           x=0,
+           y=c(110,0.9*110),
+           hjust=0)+
+  theme_bw()
 
-hist(all_trait$BE_BoitEng_Hauteur_mm, las=1, main="Root depth (mm)", xlab="", ylab="Nb of obs", col="grey",border="white", ylim=c(0,200), xlim=c(200,500), breaks = seq(100,500, by=25))
 missing <- format(round(sum(is.na(all_trait$BE_BoitEng_Hauteur_mm))/nrow(all_trait)*100,2), nsmall=2)
-legend("topleft", legend=c(paste("N obs = ",nrow(all_trait)), paste("%NA = ", missing, sep="")), bty="n")
+plt_BE_BoitEng_Hauteur_mm <- ggplot(all_trait, aes(x=BE_BoitEng_Hauteur_mm)) +
+  geom_histogram(binwidth=50, colour="black", fill="grey")+
+  labs(x="Root depth (mm)",
+       y="Nb obs")+
+  annotate("text",
+           label=c(paste("N obs = ",nrow(all_trait)), paste("%NA = ", missing, sep="")),
+           x=0,
+           y=c(500,0.9*500),
+           hjust=0)+
+  theme_bw()
 
-hist(all_trait$SPUR_Squelette_Corrige_mm, las=1, main="Root length (mm)", xlab="", ylab="Nb of obs", col="grey",border="white", ylim=c(0,200), xlim=c(20000,75000), breaks = seq(20000,75000, by=5000))
 missing <- format(round(sum(is.na(all_trait$SPUR_Squelette_Corrige_mm))/nrow(all_trait)*100,2), nsmall=2)
-legend("topleft", legend=c(paste("N obs = ",nrow(all_trait)), paste("%NA = ", missing, sep="")), bty="n")
+plt_SPUR_Squelette_Corrige_mm <- ggplot(all_trait, aes(x=SPUR_Squelette_Corrige_mm)) +
+  geom_histogram(binwidth=5000, colour="black", fill="grey")+
+  labs(x="Root length (mm)",
+       y="Nb obs")+
+  annotate("text",
+           label=c(paste("N obs = ",nrow(all_trait)), paste("%NA = ", missing, sep="")),
+           x=0,
+           y=c(200,0.9*200),
+           hjust=0)+
+  theme_bw()
 
-hist(all_trait$SURF_Surface_Projetee_mm2, las=1, main=expression("Root Surface (mm"^2*")"), xlab="", ylab="Nb of obs", col="grey",border="white", ylim=c(0,200), xlim=c(20000,75000), breaks = seq(20000,75000, by=5000))
 missing <- format(round(sum(is.na(all_trait$SURF_Surface_Projetee_mm2))/nrow(all_trait)*100,2), nsmall=2)
-legend("topleft", legend=c(paste("N obs = ",nrow(all_trait)), paste("%NA = ", missing, sep="")), bty="n")
+plt_SURF_Surface_Projetee_mm2 <- ggplot(all_trait, aes(x=SURF_Surface_Projetee_mm2)) +
+  geom_histogram(binwidth=5000, colour="black", fill="grey")+
+  labs(x=expression("Root Surface (mm"^2*")"),
+       y="Nb obs")+
+  annotate("text",
+           label=c(paste("N obs = ",nrow(all_trait)), paste("%NA = ", missing, sep="")),
+           x=0,
+           y=c(200,0.9*200),
+           hjust=0)+
+  theme_bw()
 
 
-dev.off()
-
+plot_grid(plotlist = list(plt_leaf, plt_tiller, plt_leafN, plt_RSratio, plt_Shoot_DW, plt_Root_DW, plt_Total_DW, plt_BE_BoitEng_Hauteur_mm, plt_SPUR_Squelette_Corrige_mm, plt_SURF_Surface_Projetee_mm2),
+          nrow=3,
+          ncol = 4)
+ggsave("outputs/plots/rhyzotube_trait_distribution.pdf", dpi=300, height=8, width=10)
 
 ## Statistical analysis
-
-## 1st model for aboveground traits (including the effect of harvest date)
+## We use mixed models to compare monocultures vs mixtures
 # Response variable to be changed
-mod_above <- lmer(Leaf_nb_main_stem ~ Treatment + Treatment/Repetition + Sampling_ID + Assoc + Treatment:Assoc + (1+Treatment|pair) , data=all_trait)
-summary(mod_above)
-anova(mod_above, ddf = "Kenward-Roger") 
+mod_leaf_nb <- lmer(Leaf_nb_main_stem ~ Treatment + Treatment/Repetition + Sampling_ID + Assoc + Treatment:Assoc + (1+Treatment|pair) , data=all_trait)
+summary(mod_leaf_nb)
+anova(mod_leaf_nb, ddf = "Kenward-Roger") 
+## --> Significant effect of the treatment, the sampling date, and the experimental block 
 
-set.seed(2027)
-smod <- sim(mod_above, 5000)
-svar_intercept <- apply(smod@ranef$pair[,,1],1,var)
-svar_slope <- apply(smod@ranef$pair[,,2],1,var)
+mod_till_nb <- lmer(Tiller_nb ~ Treatment + Treatment/Repetition + Sampling_ID + Assoc + Treatment:Assoc + (1+Treatment|pair) , data=all_trait)
+summary(mod_till_nb)
+anova(mod_till_nb, ddf = "Kenward-Roger") 
+## --> Significant effect of the treatment, the sampling date, and the experimental block 
 
-lme4::VarCorr(mod_above)
-quantile(svar_intercept, c(0.025, 0.975))
-quantile(svar_slope, c(0.025, 0.975))
-
-## 2nd model for leaf Nitrogen content (including the day of measurement)
 mod_leafN <- lmer(leaf_N ~ Treatment + Treatment/Repetition + Day_leafN_measurement + Assoc + Treatment:Assoc + (1+Treatment|pair) , data=all_trait)
 summary(mod_leafN)
 anova(mod_leafN, ddf = "Kenward-Roger") 
+## --> Significant effect of the treatment, and the experimental block 
 
-set.seed(2027)
-smod <- sim(mod_leafN, 5000)
-svar_intercept <- apply(smod@ranef$pair[,,1],1,var)
-svar_slope <- apply(smod@ranef$pair[,,2],1,var)
+mod_RSratio <- lmer(Root_Shoot_Ratio ~ Treatment + Treatment/Repetition + Sampling_ID + Assoc + Treatment:Assoc + (1+Treatment|pair) , data=all_trait)
+summary(mod_RSratio)
+anova(mod_RSratio, ddf = "Kenward-Roger") 
+## --> Significant effect of the treatment, the sampling date, and the experimental block 
 
-lme4::VarCorr(mod_leafN)
-quantile(svar_intercept, c(0.025, 0.975))
-quantile(svar_slope, c(0.025, 0.975))
+mod_Shoot_DW <- lmer(Shoot_DW ~ Treatment + Treatment/Repetition + Sampling_ID + Assoc + Treatment:Assoc + (1+Treatment|pair) , data=all_trait)
+summary(mod_RSratio)
+anova(mod_RSratio, ddf = "Kenward-Roger") 
+## --> Significant effect of the treatment, the sampling date, and the experimental block 
 
+mod_Root_DW <- lmer(Root_DW ~ Treatment + Treatment/Repetition + Sampling_ID + Assoc + Treatment:Assoc + (1+Treatment|pair) , data=all_trait)
+summary(mod_Root_DW)
+anova(mod_Root_DW, ddf = "Kenward-Roger") 
+## --> Significant effect of the treatment, the sampling date, and the experimental block 
 
-## 3rd model for belowground traits (w/o the effect of harvest date)
-# Response variable to be changed
-mod_below <- lmer(SURF_Surface_Projetee_mm2 ~ Treatment + Treatment/Repetition + Assoc + Treatment:Assoc + (1+Treatment|pair) , data=all_trait)
-summary(mod_below)
-anova(mod_below, ddf = "Kenward-Roger") 
+mod_Total_DW <- lmer(Root_DW ~ Treatment + Treatment/Repetition + Sampling_ID + Assoc + Treatment:Assoc + (1+Treatment|pair) , data=all_trait)
+summary(mod_Total_DW)
+anova(mod_Total_DW, ddf = "Kenward-Roger") 
+## --> Significant effect of the treatment, the sampling date, and the experimental block 
 
-set.seed(2027)
-smod <- sim(mod_below, 5000)
-svar_intercept <- apply(smod@ranef$pair[,,1],1,var)
-svar_slope <- apply(smod@ranef$pair[,,2],1,var)
+mod_BE_BoitEng_Hauteur_mm <- lmer(BE_BoitEng_Hauteur_mm ~ Treatment + Treatment/Repetition + Assoc + Treatment:Assoc + (1+Treatment|pair) , data=all_trait)
+summary(mod_BE_BoitEng_Hauteur_mm)
+anova(mod_BE_BoitEng_Hauteur_mm, ddf = "Kenward-Roger") 
+## --> Significant effect of the treatment only
 
-lme4::VarCorr(mod_below)
-quantile(svar_intercept, c(0.025, 0.975))
-quantile(svar_slope, c(0.025, 0.975))
+mod_SPUR_Squelette_Corrige_mm <- lmer(SPUR_Squelette_Corrige_mm ~ Treatment + Treatment/Repetition + Assoc + Treatment:Assoc + (1+Treatment|pair) , data=all_trait)
+summary(mod_SPUR_Squelette_Corrige_mm)
+anova(mod_SPUR_Squelette_Corrige_mm, ddf = "Kenward-Roger") 
+## --> Significant effect of the treatment, and the experimental block 
+
+mod_SURF_Surface_Projetee_mm2 <- lmer(SURF_Surface_Projetee_mm2 ~ Treatment + Treatment/Repetition + Assoc + Treatment:Assoc + (1+Treatment|pair) , data=all_trait)
+summary(mod_SURF_Surface_Projetee_mm2)
+anova(mod_SURF_Surface_Projetee_mm2, ddf = "Kenward-Roger") 
+## --> Significant effect of the treatment, and the experimental block 
+
 
 ## Plotting the effect of the treatment on above an belowground traits
-png("outputs/plots/pot_level_treatment_effect.png",width=1200, height=600, res=100)
-
-plt_spl_1 <- ggplot(data = all_trait, aes(x=Treatment, y=Leaf_nb_main_stem)) + 
+plt_leaf <- ggplot(data = all_trait, aes(x=Treatment, y=Leaf_nb_main_stem)) + 
   geom_boxplot() + 
-  labs(y = "Leaf_nb_main_stem",
+  labs(y = "Leaf nb on the main stem",
        x = "") +
   theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
 
-plt_spl_2 <- ggplot(data = all_trait, aes(x=Treatment, y=Tiller_nb)) + 
+plt_tiller <- ggplot(data = all_trait, aes(x=Treatment, y=Tiller_nb)) + 
   geom_boxplot() + 
-  labs(y = "Tiller_nb",
+  labs(y = "Tiller nb",
        x = "") +
   theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
 
-plt_spl_3 <- ggplot(data = all_trait, aes(x=Treatment, y=leaf_N)) + 
+plt_leafN <- ggplot(data = all_trait, aes(x=Treatment, y=leaf_N)) + 
   geom_boxplot() + 
   labs(y = "Leaf N (%)",
        x = "") +
   theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
 
-
-plt_spl_4 <- ggplot(data = all_trait, aes(x=Treatment, y=Root_Shoot_Ratio)) + 
+plt_RSratio <- ggplot(data = all_trait, aes(x=Treatment, y=Root_Shoot_Ratio)) + 
   geom_boxplot() + 
-  labs(y = "Root_Shoot_Ratio",
+  labs(y = "Root:Shoot ratio",
        x = "") +
   theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
 
-plt_spl_5 <- ggplot(data = all_trait, aes(x=Treatment, y=Shoot_DW)) + 
+plt_Shoot_DW <- ggplot(data = all_trait, aes(x=Treatment, y=Shoot_DW)) + 
   geom_boxplot() + 
-  labs(y = "Shoot_DW",
+  labs(y = "Shoot biomass (mg)",
        x = "") +
   theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
 
-plt_spl_6 <- ggplot(data = all_trait, aes(x=Treatment, y=Root_DW)) + 
+plt_Root_DW <- ggplot(data = all_trait, aes(x=Treatment, y=Root_DW)) + 
   geom_boxplot() + 
-  labs(y = "Root_DW",
+  labs(y = "Root biomass (mg)",
        x = "") +
   theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
 
-plt_spl_7 <- ggplot(data = all_trait, aes(x=Treatment, y=Total_DW)) + 
+plt_Total_DW <- ggplot(data = all_trait, aes(x=Treatment, y=Total_DW)) + 
   geom_boxplot() + 
-  labs(y = "Total_DW",
+  labs(y = "Total biomass (mg)",
        x = "") +
   theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
 
-plt_spl_8 <- ggplot(data = all_trait, aes(x=Treatment, y=BE_BoitEng_Hauteur_mm)) + 
+plt_BE_BoitEng_Hauteur_mm <- ggplot(data = all_trait, aes(x=Treatment, y=BE_BoitEng_Hauteur_mm)) + 
   geom_boxplot() + 
-  labs(y = "BE_BoitEng_Hauteur_mm",
+  labs(y = "Root depth (mm)",
        x = "") +
   theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
 
-plt_spl_9 <- ggplot(data = all_trait, aes(x=Treatment, y=SPUR_Squelette_Corrige_mm)) + 
+plt_SPUR_Squelette_Corrige_mm <- ggplot(data = all_trait, aes(x=Treatment, y=SPUR_Squelette_Corrige_mm)) + 
   geom_boxplot() + 
-  labs(y = "SPUR_Squelette_Corrige_mm",
+  labs(y = "Root lenght (mm)",
        x = "") +
   theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
 
-plt_spl_10 <- ggplot(data = all_trait, aes(x=Treatment, y=SURF_Surface_Projetee_mm2)) + 
+plt_SURF_Surface_Projetee_mm2 <- ggplot(data = all_trait, aes(x=Treatment, y=SURF_Surface_Projetee_mm2)) + 
   geom_boxplot() + 
-  labs(y = "SURF_Surface_Projetee_mm2",
+  labs(y = expression("Root Surface (mm"^2*")"),
        x = "") +
   theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
 
-plot_grid(plt_spl_1, plt_spl_2, plt_spl_3,plt_spl_4,plt_spl_5,plt_spl_6,plt_spl_7,plt_spl_8,plt_spl_9,plt_spl_10, align = "hv", nrow = 2, ncol=5)
+plot_grid(plotlist = list(plt_leaf, plt_tiller, plt_leafN, plt_RSratio, plt_Shoot_DW, plt_Root_DW, plt_Total_DW, plt_BE_BoitEng_Hauteur_mm, plt_SPUR_Squelette_Corrige_mm, plt_SURF_Surface_Projetee_mm2),
+          nrow=3,
+          ncol = 4)
+ggsave("outputs/plots/pot_level_treatment_effect.pdf", dpi=300, height=8, width=10)
 
-dev.off()
 
 ## Plotting the effect of the block (replicate) on above an belowground traits
 all_trait$Repetition <- as.factor(all_trait$Repetition)
 
-png("outputs/plots/pot_level_replicate_effect.png",width=1000, height=800, res=100)
-
-plt_spl_1 <- ggplot(data = all_trait, aes(x=Repetition, y=Leaf_nb_main_stem)) + 
+plt_leaf <- ggplot(data = all_trait, aes(x=Repetition, y=Leaf_nb_main_stem)) + 
   geom_boxplot() + 
-  labs(y = "Leaf_nb_main_stem",
+  labs(y = "Leaf nb on the main stem",
        x = "") +
   theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
 
-plt_spl_2 <- ggplot(data = all_trait, aes(x=Repetition, y=Tiller_nb)) + 
+plt_tiller <- ggplot(data = all_trait, aes(x=Repetition, y=Tiller_nb)) + 
   geom_boxplot() + 
-  labs(y = "Tiller_nb",
+  labs(y = "Tiller nb",
        x = "") +
   theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
 
-plt_spl_3 <- ggplot(data = all_trait, aes(x=Repetition, y=leaf_N)) + 
+plt_leafN <- ggplot(data = all_trait, aes(x=Repetition, y=leaf_N)) + 
   geom_boxplot() + 
   labs(y = "Leaf N (%)",
        x = "") +
   theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
 
-
-plt_spl_4 <- ggplot(data = all_trait, aes(x=Repetition, y=Root_Shoot_Ratio)) + 
+plt_RSratio <- ggplot(data = all_trait, aes(x=Repetition, y=Root_Shoot_Ratio)) + 
   geom_boxplot() + 
-  labs(y = "Root_Shoot_Ratio",
+  labs(y = "Root:Shoot ratio",
        x = "") +
   theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
 
-plt_spl_5 <- ggplot(data = all_trait, aes(x=Repetition, y=Shoot_DW)) + 
+plt_Shoot_DW <- ggplot(data = all_trait, aes(x=Repetition, y=Shoot_DW)) + 
   geom_boxplot() + 
-  labs(y = "Shoot_DW",
+  labs(y = "Shoot biomass (mg)",
        x = "") +
   theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
 
-plt_spl_6 <- ggplot(data = all_trait, aes(x=Repetition, y=Root_DW)) + 
+plt_Root_DW <- ggplot(data = all_trait, aes(x=Repetition, y=Root_DW)) + 
   geom_boxplot() + 
-  labs(y = "Root_DW",
+  labs(y = "Root biomass (mg)",
        x = "") +
   theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
 
-plt_spl_7 <- ggplot(data = all_trait, aes(x=Repetition, y=Total_DW)) + 
+plt_Total_DW <- ggplot(data = all_trait, aes(x=Repetition, y=Total_DW)) + 
   geom_boxplot() + 
-  labs(y = "Total_DW",
+  labs(y = "Total biomass (mg)",
        x = "") +
   theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
 
-plt_spl_8 <- ggplot(data = all_trait, aes(x=Repetition, y=BE_BoitEng_Hauteur_mm)) + 
+plt_BE_BoitEng_Hauteur_mm <- ggplot(data = all_trait, aes(x=Repetition, y=BE_BoitEng_Hauteur_mm)) + 
   geom_boxplot() + 
-  labs(y = "BE_BoitEng_Hauteur_mm",
+  labs(y = "Root depth (mm)",
        x = "") +
   theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
 
-plt_spl_9 <- ggplot(data = all_trait, aes(x=Repetition, y=SPUR_Squelette_Corrige_mm)) + 
+plt_SPUR_Squelette_Corrige_mm <- ggplot(data = all_trait, aes(x=Repetition, y=SPUR_Squelette_Corrige_mm)) + 
   geom_boxplot() + 
-  labs(y = "SPUR_Squelette_Corrige_mm",
+  labs(y = "Root lenght (mm)",
        x = "") +
   theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
 
-plt_spl_10 <- ggplot(data = all_trait, aes(x=Repetition, y=SURF_Surface_Projetee_mm2)) + 
+plt_SURF_Surface_Projetee_mm2 <- ggplot(data = all_trait, aes(x=Repetition, y=SURF_Surface_Projetee_mm2)) + 
   geom_boxplot() + 
-  labs(y = "SURF_Surface_Projetee_mm2",
+  labs(y = expression("Root Surface (mm"^2*")"),
        x = "") +
   theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
 
-plot_grid(plt_spl_1, plt_spl_2, plt_spl_3,plt_spl_4,plt_spl_5,plt_spl_6,plt_spl_7,plt_spl_8,plt_spl_9,plt_spl_10, align = "hv", nrow = 2, ncol=5)
-
-dev.off()
+plot_grid(plotlist = list(plt_leaf, plt_tiller, plt_leafN, plt_RSratio, plt_Shoot_DW, plt_Root_DW, plt_Total_DW, plt_BE_BoitEng_Hauteur_mm, plt_SPUR_Squelette_Corrige_mm, plt_SURF_Surface_Projetee_mm2),
+          nrow=3,
+          ncol = 4)
+ggsave("outputs/plots/pot_level_replicate_effect.pdf", dpi=300, height=8, width=10)
 
 
 ## Plotting the effect of the association type (Mono vs Mixt) on above an belowground traits
-png("outputs/plots/pot_level_association_effect.png",width=1000, height=800, res=100)
-
-plt_spl_1 <- ggplot(data = all_trait, aes(x=Assoc, y=Leaf_nb_main_stem)) + 
+plt_leaf <- ggplot(data = all_trait, aes(x=Assoc, y=Leaf_nb_main_stem)) + 
   geom_boxplot() + 
-  labs(y = "Leaf_nb_main_stem",
+  labs(y = "Leaf nb on the main stem",
        x = "") +
   theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
 
-plt_spl_2 <- ggplot(data = all_trait, aes(x=Assoc, y=Tiller_nb)) + 
+plt_tiller <- ggplot(data = all_trait, aes(x=Assoc, y=Tiller_nb)) + 
   geom_boxplot() + 
-  labs(y = "Tiller_nb",
+  labs(y = "Tiller nb",
        x = "") +
   theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
 
-plt_spl_3 <- ggplot(data = all_trait, aes(x=Assoc, y=leaf_N)) + 
+plt_leafN <- ggplot(data = all_trait, aes(x=Assoc, y=leaf_N)) + 
   geom_boxplot() + 
   labs(y = "Leaf N (%)",
        x = "") +
   theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
 
-
-plt_spl_4 <- ggplot(data = all_trait, aes(x=Assoc, y=Root_Shoot_Ratio)) + 
+plt_RSratio <- ggplot(data = all_trait, aes(x=Assoc, y=Root_Shoot_Ratio)) + 
   geom_boxplot() + 
-  labs(y = "Root_Shoot_Ratio",
+  labs(y = "Root:Shoot ratio",
        x = "") +
   theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
 
-plt_spl_5 <- ggplot(data = all_trait, aes(x=Assoc, y=Shoot_DW)) + 
+plt_Shoot_DW <- ggplot(data = all_trait, aes(x=Assoc, y=Shoot_DW)) + 
   geom_boxplot() + 
-  labs(y = "Shoot_DW",
+  labs(y = "Shoot biomass (mg)",
        x = "") +
   theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
 
-plt_spl_6 <- ggplot(data = all_trait, aes(x=Assoc, y=Root_DW)) + 
+plt_Root_DW <- ggplot(data = all_trait, aes(x=Assoc, y=Root_DW)) + 
   geom_boxplot() + 
-  labs(y = "Root_DW",
+  labs(y = "Root biomass (mg)",
        x = "") +
   theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
 
-plt_spl_7 <- ggplot(data = all_trait, aes(x=Assoc, y=Total_DW)) + 
+plt_Total_DW <- ggplot(data = all_trait, aes(x=Assoc, y=Total_DW)) + 
   geom_boxplot() + 
-  labs(y = "Total_DW",
+  labs(y = "Total biomass (mg)",
        x = "") +
   theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
 
-plt_spl_8 <- ggplot(data = all_trait, aes(x=Assoc, y=BE_BoitEng_Hauteur_mm)) + 
+plt_BE_BoitEng_Hauteur_mm <- ggplot(data = all_trait, aes(x=Assoc, y=BE_BoitEng_Hauteur_mm)) + 
   geom_boxplot() + 
-  labs(y = "BE_BoitEng_Hauteur_mm",
+  labs(y = "Root depth (mm)",
        x = "") +
   theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
 
-plt_spl_9 <- ggplot(data = all_trait, aes(x=Assoc, y=SPUR_Squelette_Corrige_mm)) + 
+plt_SPUR_Squelette_Corrige_mm <- ggplot(data = all_trait, aes(x=Assoc, y=SPUR_Squelette_Corrige_mm)) + 
   geom_boxplot() + 
-  labs(y = "SPUR_Squelette_Corrige_mm",
+  labs(y = "Root lenght (mm)",
        x = "") +
   theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
 
-plt_spl_10 <- ggplot(data = all_trait, aes(x=Assoc, y=SURF_Surface_Projetee_mm2)) + 
+plt_SURF_Surface_Projetee_mm2 <- ggplot(data = all_trait, aes(x=Assoc, y=SURF_Surface_Projetee_mm2)) + 
   geom_boxplot() + 
-  labs(y = "SURF_Surface_Projetee_mm2",
+  labs(y = expression("Root Surface (mm"^2*")"),
        x = "") +
   theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
 
-plot_grid(plt_spl_1, plt_spl_2, plt_spl_3,plt_spl_4,plt_spl_5,plt_spl_6,plt_spl_7,plt_spl_8,plt_spl_9,plt_spl_10, align = "hv", nrow = 2, ncol=5)
+plot_grid(plotlist = list(plt_leaf, plt_tiller, plt_leafN, plt_RSratio, plt_Shoot_DW, plt_Root_DW, plt_Total_DW, plt_BE_BoitEng_Hauteur_mm, plt_SPUR_Squelette_Corrige_mm, plt_SURF_Surface_Projetee_mm2),
+          nrow=3,
+          ncol = 4)
 
-dev.off()
-
+ggsave("outputs/plots/pot_level_association_effect.pdf", dpi=300, height=8, width=10)
 
 ## Plotting the effect of the sampling date on aboveground traits
 all_trait$Sampling_ID <-as.factor(all_trait$Sampling_ID)
 all_trait$Day_leafN_measurement <-as.factor(all_trait$Day_leafN_measurement)
 
-png("outputs/plots/pot_level_sampling_date_effect.png",width=1000, height=600, res=100)
-
-plt_spl_1 <- ggplot(data = all_trait, aes(x=Sampling_ID, y=Leaf_nb_main_stem)) + 
+plt_leaf <- ggplot(data = all_trait, aes(x=Sampling_ID, y=Leaf_nb_main_stem)) + 
   geom_boxplot() + 
-  labs(y = "Leaf_nb_main_stem",
+  labs(y = "Leaf nb on the main stem",
        x = "") +
   theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
 
-plt_spl_2 <- ggplot(data = all_trait, aes(x=Sampling_ID, y=Tiller_nb)) + 
+plt_tiller <- ggplot(data = all_trait, aes(x=Sampling_ID, y=Tiller_nb)) + 
   geom_boxplot() + 
-  labs(y = "Tiller_nb",
+  labs(y = "Tiller nb",
        x = "") +
   theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
 
-plt_spl_3 <- ggplot(data = all_trait, aes(x=Day_leafN_measurement, y=leaf_N)) + 
+plt_leafN <- ggplot(data = na.omit(all_trait), aes(x=Day_leafN_measurement, y=leaf_N)) + 
   geom_boxplot() + 
   labs(y = "Leaf N (%)",
        x = "") +
   theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
 
-
-plt_spl_4 <- ggplot(data = all_trait, aes(x=Sampling_ID, y=Root_Shoot_Ratio)) + 
+plt_RSratio <- ggplot(data = all_trait, aes(x=Sampling_ID, y=Root_Shoot_Ratio)) + 
   geom_boxplot() + 
-  labs(y = "Root_Shoot_Ratio",
+  labs(y = "Root:Shoot ratio",
        x = "") +
   theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
 
-plt_spl_5 <- ggplot(data = all_trait, aes(x=Sampling_ID, y=Shoot_DW)) + 
+plt_Shoot_DW <- ggplot(data = all_trait, aes(x=Sampling_ID, y=Shoot_DW)) + 
   geom_boxplot() + 
-  labs(y = "Shoot_DW",
+  labs(y = "Shoot biomass (mg)",
        x = "") +
   theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
 
-plt_spl_6 <- ggplot(data = all_trait, aes(x=Sampling_ID, y=Root_DW)) + 
+plt_Root_DW <- ggplot(data = all_trait, aes(x=Sampling_ID, y=Root_DW)) + 
   geom_boxplot() + 
-  labs(y = "Root_DW",
+  labs(y = "Root biomass (mg)",
        x = "") +
   theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
 
-plt_spl_7 <- ggplot(data = all_trait, aes(x=Sampling_ID, y=Total_DW)) + 
+plt_Total_DW <- ggplot(data = all_trait, aes(x=Sampling_ID, y=Total_DW)) + 
   geom_boxplot() + 
-  labs(y = "Total_DW",
+  labs(y = "Total biomass (mg)",
        x = "") +
   theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
 
-plt_spl_8 <- ggplot(data = all_trait, aes(x=Sampling_ID, y=BE_BoitEng_Hauteur_mm)) + 
-  geom_boxplot() + 
-  labs(y = "BE_BoitEng_Hauteur_mm",
-       x = "") +
-  theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
-
-plt_spl_9 <- ggplot(data = all_trait, aes(x=Sampling_ID, y=SPUR_Squelette_Corrige_mm)) + 
-  geom_boxplot() + 
-  labs(y = "SPUR_Squelette_Corrige_mm",
-       x = "") +
-  theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
-
-plt_spl_10 <- ggplot(data = all_trait, aes(x=Sampling_ID, y=SURF_Surface_Projetee_mm2)) + 
-  geom_boxplot() + 
-  labs(y = "SURF_Surface_Projetee_mm2",
-       x = "") +
-  theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
-
-plot_grid(plt_spl_1, plt_spl_2, plt_spl_3,plt_spl_4,plt_spl_5,plt_spl_6,plt_spl_7,plt_spl_8,plt_spl_9,plt_spl_10, align = "hv", nrow = 2, ncol=5)
-
-dev.off()
-
+plot_grid(plotlist = list(plt_leaf, plt_tiller, plt_leafN, plt_RSratio, plt_Shoot_DW, plt_Root_DW, plt_Total_DW),
+          nrow=3,
+          ncol = 3)
+ggsave("outputs/plots/pot_level_sampling_date_effect.pdf", dpi=300, height=8, width=10)
 
 ###########################################
 #### III. COMPARING MIXTURES AND MONOCULTURES WITH RYT
@@ -773,7 +648,7 @@ dev.off()
 har_ag2 <- aggregate(.~RT_ID+Focal+Neighbour+Assoc+Treatment+Repetition+Sampling_ID, data=har[,-which(colnames(har)%in%c("Plant_ID","Root_Shoot_Ratio","Comments", "leaf_N","Day_leafN_measurement"))], FUN=sum)
 har_ag2$Root_Shoot_Ratio <- har_ag2$Root_DW/har_ag2$Shoot_DW
 
-## Subsetting monoculture data
+## Separating monoculture and mixture data
 har_ag_M <- droplevels(har_ag2[which(har_ag2$Assoc=="Monoc"),])
 har_ag_P <- droplevels(har_ag2[which(har_ag2$Assoc=="Mixt"),])
 
@@ -782,25 +657,27 @@ har_ag_M$Focal <- as.factor(har_ag_M$Focal)
 blup_monoc <- data.frame(Genotype=levels(har_ag_M$Focal), Treatment=rep(c("WW","WS"), each=36))
 
 ## Shoot_DW
-mod <- lmer(Shoot_DW ~  Treatment + Treatment/Repetition + Sampling_ID + (1|Focal), data=har_ag_M)
+mod <- lmer(Shoot_DW ~  Treatment + Treatment/Repetition + Sampling_ID + (1+Treatment|Focal), data=har_ag_M)
 summary(mod)
 
 blup_monoc[which(blup_monoc$Treatment=="WW"),"Shoot_DW"] <- fixef(mod)[1]+ranef(mod)$Focal[1]
-blup_monoc[which(blup_monoc$Treatment=="WS"),"Shoot_DW"] <- fixef(mod)[1]+ranef(mod)$Focal[1]+fixef(mod)[2]
+blup_monoc[which(blup_monoc$Treatment=="WS"),"Shoot_DW"] <- fixef(mod)[1]+fixef(mod)[2]+ranef(mod)$Focal[1]+ranef(mod)$Focal[2]
+#fixef(mod)[1]+ranef(mod)$Focal[1]+fixef(mod)[2]
+
 
 ## Root_DW
-mod <- lmer(Root_DW ~  Treatment + Treatment/Repetition + Sampling_ID + (1|Focal), data=har_ag_M)
+mod <- lmer(Root_DW ~  Treatment + Treatment/Repetition + Sampling_ID + (1+Treatment|Focal), data=har_ag_M)
 summary(mod)
 
 blup_monoc[which(blup_monoc$Treatment=="WW"),"Root_DW"] <- fixef(mod)[1]+ranef(mod)$Focal[1]
-blup_monoc[which(blup_monoc$Treatment=="WS"),"Root_DW"] <- fixef(mod)[1]+ranef(mod)$Focal[1]+fixef(mod)[2]
+blup_monoc[which(blup_monoc$Treatment=="WS"),"Root_DW"] <- fixef(mod)[1]+fixef(mod)[2]+ranef(mod)$Focal[1]+ranef(mod)$Focal[2]
 
 ## Total_DW
-mod <- lmer(Total_DW ~  Treatment + Treatment/Repetition + Sampling_ID + (1|Focal), data=har_ag_M)
+mod <- lmer(Total_DW ~  Treatment + Treatment/Repetition + Sampling_ID + (1+Treatment|Focal), data=har_ag_M)
 summary(mod)
 
 blup_monoc[which(blup_monoc$Treatment=="WW"),"Total_DW"] <- fixef(mod)[1]+ranef(mod)$Focal[1]
-blup_monoc[which(blup_monoc$Treatment=="WS"),"Total_DW"] <- fixef(mod)[1]+ranef(mod)$Focal[1]+fixef(mod)[2]
+blup_monoc[which(blup_monoc$Treatment=="WS"),"Total_DW"] <- fixef(mod)[1]+fixef(mod)[2]+ranef(mod)$Focal[1]+ranef(mod)$Focal[2]
 
 
 ## computing mixture BLUPS
@@ -863,104 +740,112 @@ for (i in c(1:nrow(blup_mixt))) {
 RYT <- unique(blup_mixt[,c("Pair_unoriented","Treatment","Shoot_DW_RYT","Root_DW_RYT","Total_DW_RYT")])
 
 ### Data distribution
-png("outputs/plots/RYT_distribution.png", width=800, height=400, res=150)
-par(mfrow=c(1,3), mar=c(4,5,4,1))
-
-hist(RYT$Shoot_DW_RYT, las=1, main="Shoot biomass (RYT)", xlab="", ylab="Nb of obs", col="grey",border="white", ylim=c(0,80), xlim=c(0.5,1.5), breaks = seq(0.5,1.5, by=0.1))
-abline(v=1, lty=2)
 missing <- format(round(sum(is.na(RYT$Shoot_DW_RYT))/nrow(RYT)*100,2), nsmall=2)
 mu <- format(round(mean(RYT$Shoot_DW_RYT, na.rm=T),2), nsmall=2)
-legend("topleft", legend=c(paste("N obs = ",nrow(RYT)), paste("%NA = ", missing, sep=""), paste("mean = ",mu,"**", sep="")), bty="n")
+plt_RYT_Shoot <- ggplot(RYT, aes(x=Shoot_DW_RYT)) +
+  geom_histogram(binwidth=0.05, colour="black", fill="grey")+
+  labs(x="",
+       y="Nb obs", 
+       title="Shoot biomass (RYT)")+
+  annotate("text",
+           label=c(paste("N obs = ",nrow(RYT)), paste("%NA = ", missing, sep=""), paste("mean = ",mu,"***", sep="")),
+           x=0.75,
+           y=c(50,0.95*50,0.90*50),
+           hjust=0)+
+  geom_vline(xintercept = 1, linetype=2)+
+  theme_bw()+
+  theme(plot.title = element_text(hjust = 0.5))
 
-hist(RYT$Root_DW_RYT, las=1, main="Root biomass (RYT)", xlab="", ylab="Nb of obs", col="grey",border="white", ylim=c(0,80), xlim=c(0.5,1.5), breaks = seq(0.5,1.5, by=0.1))
-abline(v=1, lty=2)
+
 missing <- format(round(sum(is.na(RYT$Root_DW_RYT))/nrow(RYT)*100,2), nsmall=2)
 mu <- format(round(mean(RYT$Root_DW_RYT, na.rm=T),2), nsmall=2)
-legend("topleft", legend=c(paste("N obs = ",nrow(RYT)), paste("%NA = ", missing, sep=""), paste("mean = ",mu,"***", sep="")), bty="n")
+plt_RYT_Root <- ggplot(RYT, aes(x=Root_DW_RYT)) +
+  geom_histogram(binwidth=0.05, colour="black", fill="grey")+
+  labs(x="",
+       y="Nb obs", 
+       title="Root biomass (RYT)")+
+  annotate("text",
+           label=c(paste("N obs = ",nrow(RYT)), paste("%NA = ", missing, sep=""), paste("mean = ",mu,"***", sep="")),
+           x=0.75,
+           y=c(50,0.95*50,0.90*50),
+           hjust=0)+
+  geom_vline(xintercept = 1, linetype=2)+
+  theme_bw()+
+  theme(plot.title = element_text(hjust = 0.5))
 
-hist(RYT$Total_DW_RYT, las=1, main="Total biomass (RYT)", xlab="", ylab="Nb of obs", col="grey",border="white", ylim=c(0,80), xlim=c(0.5,1.5), breaks = seq(0.5,1.5, by=0.1))
-abline(v=1, lty=2)
 missing <- format(round(sum(is.na(RYT$Total_DW_RYT))/nrow(RYT)*100,2), nsmall=2)
 mu <- format(round(mean(RYT$Total_DW_RYT, na.rm=T),2), nsmall=2)
-legend("topleft", legend=c(paste("N obs = ",nrow(RYT)), paste("%NA = ", missing, sep=""), paste("mean = ",mu,"***", sep="")), bty="n")
+plt_RYT_Total <- ggplot(RYT, aes(x=Total_DW_RYT)) +
+  geom_histogram(binwidth=0.05, colour="black", fill="grey")+
+  labs(x="",
+       y="Nb obs", 
+       title="Total biomass (RYT)")+
+  annotate("text",
+           label=c(paste("N obs = ",nrow(RYT)), paste("%NA = ", missing, sep=""), paste("mean = ",mu,"***", sep="")),
+           x=0.75,
+           y=c(50,0.95*50,0.90*50),
+           hjust=0)+
+  geom_vline(xintercept = 1, linetype=2)+
+  theme_bw()+
+  theme(plot.title = element_text(hjust = 0.5))
 
-dev.off()
-
+plot_grid(plotlist = list(plt_RYT_Shoot, plt_RYT_Root, plt_RYT_Total),
+          nrow=1,
+          ncol = 3)
+ggsave("outputs/plots/RYT_distribution.pdf", dpi=300, height=4, width=9)
 
 ## Statistical analysis
 RYT$Treatment <- as.factor(RYT$Treatment)
 RYT$Treatment = factor(RYT$Treatment,levels(RYT$Treatment)[c(2,1)])
 
-mod <- lmer(Total_DW_RYT ~  Treatment + (1|Pair_unoriented), data=RYT)
-summary(mod) 
-anova(mod, ddf = "Kenward-Roger")
+mod_Shoot_RYT <- lmer(Shoot_DW_RYT ~  Treatment + (1|Pair_unoriented), data=RYT)
+summary(mod_Shoot_RYT) 
+anova(mod_Shoot_RYT, ddf = "Kenward-Roger")
+## --> No effect of the treatment on aboveground biomass RYT
 
-set.seed(2027)
-smod <- sim(mod, 5000)
-svar_intercept <- apply(smod@ranef$Pair_unoriented[,,1],1,var)
-#svar_slope <- apply(smod@ranef$pair[,,2],1,var)
-quantile(svar_intercept, c(0.025, 0.975))
-#quantile(svar_slope, c(0.025, 0.975))
+mod_Root_RYT <- lmer(Root_DW_RYT ~  Treatment + (1|Pair_unoriented), data=RYT)
+summary(mod_Root_RYT) 
+anova(mod_Root_RYT, ddf = "Kenward-Roger")
+## --> No effect of the treatment on belowground biomass RYT
+
+mod_Total_RYT <- lmer(Total_DW_RYT ~  Treatment + (1|Pair_unoriented), data=RYT)
+summary(mod_Total_RYT) 
+anova(mod_Total_RYT, ddf = "Kenward-Roger")
+## --> No effect of the treatment on total biomass RYT
+
 
 ## Plotting the effect of the treatment on RYT
-png("outputs/plots/pot_level_RYT_treatment_effect.png",width=800, height=400, res=100)
-
-plt_spl_1 <- ggplot(data = RYT, aes(x=Treatment, y=Shoot_DW_RYT)) + 
+plt_RYT_Shoot <- ggplot(data = RYT, aes(x=Treatment, y=Shoot_DW_RYT)) + 
   geom_boxplot() + 
-  labs(y = "Shoot_DW RYT",
-       x = "") +
-  theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5), margin=margin(r=1)), axis.title.x= element_text(size=rel(1.2), margin=margin(t=20)), axis.title.y= element_text(size=rel(1.2), margin=margin(r=20)), plot.margin = unit(c(0, 1, 0, 1),"cm"))+
-  geom_hline(yintercept=1, linetype="dashed")
+  labs(y = "",
+       x = "",
+       title = "Shoot biomass RYT") +
+  geom_hline(yintercept=1, linetype=2)+
+  theme_bw()+
+  theme(plot.title = element_text(hjust = 0.5))
 
-plt_spl_2 <- ggplot(data = RYT, aes(x=Treatment, y=Root_DW_RYT)) + 
+plt_RYT_Root <- ggplot(data = RYT, aes(x=Treatment, y=Root_DW_RYT)) + 
   geom_boxplot() + 
-  labs(y = "Root_DW RYT",
-       x = "") +
-  theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5), margin=margin(r=1)), axis.title.x= element_text(size=rel(1.2), margin=margin(t=20)), axis.title.y= element_text(size=rel(1.2), margin=margin(r=20)), plot.margin = unit(c(0, 1, 0, 1),"cm"))+
-  geom_hline(yintercept=1, linetype="dashed")
+  labs(y = "",
+       x = "",
+       title = "Root biomass RYT") +
+  geom_hline(yintercept=1, linetype=2)+
+  theme_bw()+
+  theme(plot.title = element_text(hjust = 0.5))
 
-plt_spl_3 <- ggplot(data = RYT, aes(x=Treatment, y=Total_DW_RYT)) + 
+plt_RYT_Total <- ggplot(data = RYT, aes(x=Treatment, y=Total_DW_RYT)) + 
   geom_boxplot() + 
-  labs(y = "Total_DW RYT",
-       x = "") +
-  theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5), margin=margin(r=1)), axis.title.x= element_text(size=rel(1.2), margin=margin(t=20)), axis.title.y= element_text(size=rel(1.2), margin=margin(r=20)), plot.margin = unit(c(0, 1, 0, 1),"cm"))+
-  geom_hline(yintercept=1, linetype="dashed")
+  labs(y = "",
+       x = "",
+       title = "Total biomass RYT") +
+  geom_hline(yintercept=1, linetype=2)+
+  theme_bw()+
+  theme(plot.title = element_text(hjust = 0.5))
 
-plot_grid(plt_spl_1, plt_spl_2, plt_spl_3, plt_spl_6, align = "hv", nrow = 1, ncol=3)
-
-dev.off()
-
-
-## Computing the absolute productivity of mixture pots (sum of the productivity of the 2 components)
-har_ag_P <- droplevels(har_ag[which(har_ag$Assoc=="Mixt"),])
-
-## Adding a "genotypic pair" factor which combines the identities of the two genotypes present in a given rhizotube
-for (i in c(1:nrow(har_ag_P))) {
-  RT <- as.numeric(har_ag_P[i,"RT_ID"])
-  har_ag_P[i,"Pair_unoriented"] <- paste(sort(unique(har[which(har$RT_ID==RT),"Focal"])), collapse = ";")
-}
-
-## computing mixture RAW productivity
-har_ag_P$Pair_unoriented <- as.factor(har_ag_P$Pair_unoriented)
-mixt_RAW <- data.frame(Pair_unoriented=levels(har_ag_P$Pair_unoriented), Treatment=rep(c("WW","WS"), each=54))
-
-# Shoot_DW
-mod <- lmer(Shoot_DW ~  Treatment + Treatment/Repetition + Sampling_ID + (1+Treatment|Pair_unoriented), data=har_ag_P)
-mixt_RAW[which(mixt_RAW$Treatment=="WW"),"Shoot_DW"] <- fixef(mod)[1]+ranef(mod)$Pair_unoriented[1]
-mixt_RAW[which(mixt_RAW$Treatment=="WS"),"Shoot_DW"] <- fixef(mod)[1]+ranef(mod)$Pair_unoriented[1]+fixef(mod)[2]+ranef(mod)$Pair_unoriented[2]
-
-# Root_DW
-mod <- lmer(Root_DW ~  Treatment + Treatment/Repetition + Sampling_ID + (1+Treatment|Pair_unoriented), data=har_ag_P)
-mixt_RAW[which(mixt_RAW$Treatment=="WW"),"Root_DW"] <- fixef(mod)[1]+ranef(mod)$Pair_unoriented[1]
-mixt_RAW[which(mixt_RAW$Treatment=="WS"),"Root_DW"] <- fixef(mod)[1]+ranef(mod)$Pair_unoriented[1]+fixef(mod)[2]+ranef(mod)$Pair_unoriented[2]
-
-# Total_DW
-mod <- lmer(Total_DW ~  Treatment + Treatment/Repetition + Sampling_ID + (1+Treatment|Pair_unoriented), data=har_ag_P)
-mixt_RAW[which(mixt_RAW$Treatment=="WW"),"Total_DW"] <- fixef(mod)[1]+ranef(mod)$Pair_unoriented[1]
-mixt_RAW[which(mixt_RAW$Treatment=="WS"),"Total_DW"] <- fixef(mod)[1]+ranef(mod)$Pair_unoriented[1]+fixef(mod)[2]+ranef(mod)$Pair_unoriented[2]
-
-####
-PROD <- merge(mixt_RAW, RYT[,c("Pair_unoriented","Treatment","Shoot_DW_RYT","Root_DW_RYT","Total_DW_RYT")], by=c("Pair_unoriented","Treatment"))
+plot_grid(plotlist = list(plt_RYT_Shoot, plt_RYT_Root, plt_RYT_Total),
+          nrow=1,
+          ncol = 3)
+ggsave("outputs/plots/pot_level_RYT_treatment_effect.pdf", dpi=300, height=4, width=9)
 
 
 #######################################
