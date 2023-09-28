@@ -1,0 +1,2376 @@
+### G. Montazeaud
+### 25/05/2020
+
+### Analysis of the SolACE 3 experimental data. 36 genotypes were grown in monocultures and in 54 two-way mixtures with two treatments (WW = non limiting water and nitrogen, WS = limiting water and nitrogen) in controled conditions (Dijon, 4PMI platform)
+
+######################################
+### WORKING DIRECTORY AND PACKAGES ###
+######################################
+library(lme4)
+library(arm)
+library(ggplot2)
+library(cowplot)
+library(agricolae)
+library(lmerTest)
+library(glmulti)
+library(ggpubr)
+
+###########################################
+#### I. ANALYSIS AT THE INDIVIDUAL PLANT LEVEL
+###########################################
+
+### we here only consider harvest trait data, as root trait data is not available at the single plant level
+
+### Loading harvest data
+har <- read.table("data/raw_data/biomass_data/harvest_data.csv", header=T, sep=",")
+
+### Merging harvest data with leaf Nitrogen data
+leafN <- read.csv("data/processed_data/leafN_processed.csv", header=T)
+har <- merge(har,leafN, by=c("RT_ID","Plant_ID"),all.x=T)
+
+## Re-ordering factor levels
+har$Treatment <- as.factor(har$Treatment)
+har$Treatment = factor(har$Treatment,levels(har$Treatment)[c(2,1)])
+har$Assoc <- as.factor(har$Assoc)
+har$Assoc = factor(har$Assoc,levels(har$Assoc)[c(2,1)])
+har$Repetition <- as.factor(har$Repetition)
+
+## Adding +1 tiller to all plants because so that the baseline tiller number is 1 and not 0
+har$Tiller_nb = har$Tiller_nb+1
+
+### Data distribution
+png("outputs/plots/single_plant_trait_distribution.png", width=1000, height=800, res=160)
+par(mfrow=c(3,3), mar=c(4,5,4,1))
+
+hist(har$Leaf_nb_main_stem, las=1, main="Nb of leaves \n on the main stem", xlab="", ylab="Nb of obs", col="grey",border="white", ylim=c(0,2200))
+missing <- format(round(sum(is.na(har$Leaf_nb_main_stem))/nrow(har)*100,2), nsmall=2)
+legend("topleft", legend=c(paste("N obs = ",nrow(har)), paste("%NA = ", missing, sep="")), bty="n")
+
+hist(har$Tiller_nb, las=1, main="Nb of tillers", xlab="", ylab="Nb of obs", col="grey",border="white", ylim=c(0,2000))
+missing <- format(round(sum(is.na(har$Tiller_nb))/nrow(har)*100,2), nsmall=2)
+legend("topleft", legend=c(paste("N obs = ",nrow(har)), paste("%NA = ", missing, sep="")), bty="n")
+
+hist(har$Root_Shoot_Ratio, las=1, main="Root:Shoot ratio", xlab="", ylab="Nb of obs",col="grey",border="white", ylim=c(0,1600))
+missing <- format(round(sum(is.na(har$Root_Shoot_Ratio))/nrow(har)*100,2), nsmall=2)
+legend("topleft", legend=c(paste("N obs = ",nrow(har)), paste("%NA = ", missing, sep="")), bty="n")
+
+hist(har$Shoot_DW, las=1, main="Shoot biomass (mg)", xlab="", ylab="Nb of obs",col="grey",border="white", ylim=c(0,900))
+missing <- format(round(sum(is.na(har$Shoot_DW))/nrow(har)*100,2), nsmall=2)
+legend("topleft", legend=c(paste("N obs = ",nrow(har)), paste("%NA = ", missing, sep="")), bty="n")
+
+hist(har$Root_DW, las=1, main="Root biomass (mg)", xlab="", ylab="Nb of obs",col="grey",border="white", ylim=c(0,900), breaks=seq(0,400, by=25))
+missing <- format(round(sum(is.na(har$Root_DW))/nrow(har)*100,2), nsmall=2)
+legend("topleft", legend=c(paste("N obs = ",nrow(har)), paste("%NA = ", missing, sep="")), bty="n")
+
+hist(har$Total_DW, las=1, main="Total biomass (mg)", xlab="", ylab="Nb of obs",col="grey",border="white", ylim=c(0,900))
+missing <- format(round(sum(is.na(har$Total_DW))/nrow(har)*100,2), nsmall=2)
+legend("topleft", legend=c(paste("N obs = ",nrow(har)), paste("%NA = ", missing, sep="")), bty="n")
+
+hist(har$leaf_N, las=1, main="Leaf nitrogen content (%)", xlab="", ylab="Nb of obs",col="grey",border="white", ylim=c(0,900))
+missing <- format(round(sum(is.na(har$leaf_N))/nrow(har)*100,2), nsmall=2)
+legend("topleft", legend=c(paste("N obs = ",nrow(har)), paste("%NA = ", missing, sep="")), bty="n")
+dev.off()
+
+## Checking 2 plants with very high R:S ratios
+har[which(har$Root_Shoot_Ratio>2),]
+
+
+## Checking data quality (comments on plant damages, missing plants, etc)
+summary(har)
+har$Comments <- as.factor(har$Comments)
+levels(har$Comments)
+har_pb <- har[grep("^P",har$Comments),]
+har_no_pb <- har[!grepl("^P",har$Comments),]
+har_pb_unref <- har_no_pb[!complete.cases(har_no_pb$Leaf_nb_main_stem, har_no_pb$Tiller_nb, har_no_pb$Root_DW, har_no_pb$Shoot_DW, har_no_pb$Total_DW, har_no_pb$Root_Shoot_Ratio),]
+pb <- rbind(har_pb, har_pb_unref)
+length(unique(pb$RT_ID))
+
+
+## Checking pairwise correlations between variables
+
+## Defining a graphical function to add correlation coefficients (Pearson'r) and correlation significance to classical pairwise scatter plots. 
+panel.cor <- function(x, y, digits=2, prefix="", cex.cor) 
+{
+  usr <- par("usr"); on.exit(par(usr)) 
+  par(usr = c(0, 1, 0, 1)) 
+  r <- cor(x, y, use="pairwise")
+  txt <- format(round(r, 2), nsmall = 2)
+  txt <- paste(prefix, txt, sep="") 
+  if(missing(cex.cor)) cex <- 1/(3*strwidth(txt)) 
+  
+  test <- cor.test(x,y) 
+  # borrowed from printCoefmat
+  Signif <- symnum(test$p.value, corr = FALSE, na = FALSE, 
+                   cutpoints = c(0, 0.001, 0.01, 0.05, 0.1, 1),
+                   symbols = c("***", "**", "*", ".", " ")) 
+  
+  text(0.5, 0.5, txt, cex = cex) 
+  text(.7, .8, Signif, cex=cex, col=2) 
+}
+
+
+png("outputs/plots/pairwise_correlations.png", height=600, width=1000, res=100)
+par(cex.axis=1.5, las=1, pch=19)
+pairs(har[,c("Leaf_nb_main_stem","Tiller_nb","Root_Shoot_Ratio","Shoot_DW","Root_DW","Total_DW", "leaf_N")], upper.panel = panel.cor, lower.panel = panel.smooth, labels=c("Nb of leaves\non the main stem", "Nb of tillers","R:S Ratio","Shoot\nbiomass (mg)","Root\nbiomass (mg)","Total\nbiomass (mg)", "Leaf N\ncontent (%)"), cex.labels=1.5)
+dev.off()
+
+## Statistical analysis (response variable to changed)
+mod <- lmer(leaf_N ~  Treatment + Treatment/Repetition + Assoc + Day_leafN_measurement + Treatment:Assoc + (1+Treatment|Focal) + (1|RT_ID) , data=har)
+summary(mod)  
+anova(mod, ddf="Kenward-Roger")
+
+
+set.seed(2027)
+smod <- sim(mod, 5000)
+svar_RT <- apply(smod@ranef$RT_ID[,,1],1,var)
+svar_intercept <- apply(smod@ranef$Focal[,,1],1,var)
+svar_slope <- apply(smod@ranef$Focal[,,2],1,var)
+
+lme4::VarCorr(mod)
+
+quantile(svar_intercept, c(0.025, 0.975))
+quantile(svar_slope, c(0.025, 0.975))
+quantile(svar_RT, c(0.025, 0.975))
+
+## Plotting the effet of the treatment on aboveground traits
+png("outputs/plots/individual_RAW_treatment.png",width=800, height=800, res=100)
+
+plt_spl_1 <- ggplot(data = har, aes(x=Treatment, y=Leaf_nb_main_stem)) + 
+  geom_boxplot() + 
+  labs(y = "Leaf_nb_main_stem",
+       x = "") +
+  theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5), margin=margin(r=1)), axis.title.x= element_text(size=rel(1.2), margin=margin(t=20)), axis.title.y= element_text(size=rel(1.2), margin=margin(r=20)), plot.margin = unit(c(0, 2, 0, 2),"cm"))
+
+plt_spl_2 <- ggplot(data = har, aes(x=Treatment, y=Tiller_nb)) + 
+  geom_boxplot() + 
+  labs(y = "Tiller_nb",
+       x = "") +
+  theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5), margin=margin(r=1)), axis.title.x= element_text(size=rel(1.2), margin=margin(t=20)), axis.title.y= element_text(size=rel(1.2), margin=margin(r=20)), plot.margin = unit(c(0, 2, 0, 2),"cm"))
+
+
+plt_spl_3 <- ggplot(data = har, aes(x=Treatment, y=Root_Shoot_Ratio)) + 
+  geom_boxplot() + 
+  labs(y = "Root_Shoot_Ratio",
+       x = "") +
+  theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5), margin=margin(r=1)), axis.title.x= element_text(size=rel(1.2), margin=margin(t=20)), axis.title.y= element_text(size=rel(1.2), margin=margin(r=20)), plot.margin = unit(c(0, 2, 0, 2),"cm"))
+
+plt_spl_4 <- ggplot(data = har, aes(x=Treatment, y=Shoot_DW)) + 
+  geom_boxplot() + 
+  labs(y = "Shoot_DW",
+       x = "") +
+  theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5), margin=margin(r=1)), axis.title.x= element_text(size=rel(1.2), margin=margin(t=20)), axis.title.y= element_text(size=rel(1.2), margin=margin(r=20)), plot.margin = unit(c(0, 2, 0, 2),"cm"))
+
+plt_spl_5 <- ggplot(data = har, aes(x=Treatment, y=Root_DW)) + 
+  geom_boxplot() + 
+  labs(y = "Root_DW",
+       x = "") +
+  theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5), margin=margin(r=1)), axis.title.x= element_text(size=rel(1.2), margin=margin(t=20)), axis.title.y= element_text(size=rel(1.2), margin=margin(r=20)), plot.margin = unit(c(0, 2, 0, 2),"cm"))
+
+plt_spl_6 <- ggplot(data = har, aes(x=Treatment, y=Total_DW)) + 
+  geom_boxplot() + 
+  labs(y = "Total_DW",
+       x = "") +
+  theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5), margin=margin(r=1)), axis.title.x= element_text(size=rel(1.2), margin=margin(t=20)), axis.title.y= element_text(size=rel(1.2), margin=margin(r=20)), plot.margin = unit(c(0, 2, 0, 2),"cm"))
+
+plt_spl_7 <- ggplot(data = har, aes(x=Treatment, y=leaf_N)) + 
+  geom_boxplot() + 
+  labs(y = "Leaf N",
+       x = "") +
+  theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5), margin=margin(r=1)), axis.title.x= element_text(size=rel(1.2), margin=margin(t=20)), axis.title.y= element_text(size=rel(1.2), margin=margin(r=20)), plot.margin = unit(c(0, 2, 0, 2),"cm"))
+
+plot_grid(plt_spl_1, plt_spl_4, plt_spl_2, plt_spl_5, plt_spl_3, plt_spl_6,plt_spl_7, align = "hv", nrow = 4, ncol=2)
+
+dev.off()
+
+
+## Plotting the effect of the sampling date on different above ground traits
+har$Sampling_ID <-as.factor(har$Sampling_ID)
+har$Day_leafN_measurement <-as.factor(har$Day_leafN_measurement)
+
+png("outputs/plots/individual_RAW_sampling_id.png",width=800, height=800, res=100)
+
+plt_spl_1 <- ggplot(data = har, aes(x=Sampling_ID, y=Leaf_nb_main_stem)) + 
+  geom_boxplot() + 
+  facet_grid(. ~ Treatment) +
+  labs(y = "Leaf_nb_main_stem",
+       x = "") +
+  theme(strip.text = element_text(size = rel(1), color="white", face="bold"), strip.background = element_rect(fill="black"),
+        panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5), margin=margin(r=1)), axis.title.x= element_text(size=rel(1.2), margin=margin(t=20)), axis.title.y= element_text(size=rel(1.2), margin=margin(r=20)), plot.margin = unit(c(0, 0, 0, 1),"cm"))
+
+plt_spl_2 <- ggplot(data = har, aes(x=Sampling_ID, y=Tiller_nb)) + 
+  geom_boxplot() + 
+  facet_grid(. ~ Treatment) +
+  labs(y = "Tiller_nb",
+       x = "") +
+  theme(strip.text = element_text(size = rel(1), color="white", face="bold"), strip.background = element_rect(fill="black"), panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5), margin=margin(r=1)), axis.title.x= element_text(size=rel(1.2), margin=margin(t=20)), axis.title.y= element_text(size=rel(1.2), margin=margin(r=20)), plot.margin = unit(c(0, 0, 0, 1),"cm"))
+
+plt_spl_3 <- ggplot(data = har, aes(x=Sampling_ID, y=Root_Shoot_Ratio)) + 
+  geom_boxplot() + 
+  facet_grid(. ~ Treatment) +
+  labs(y = "Root:Shoot Ratio",
+       x = "Sampling_ID") +
+  theme(strip.text = element_text(size = rel(1), color="white", face="bold"), strip.background = element_rect(fill="black"),panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5), margin=margin(r=1)), axis.title.x= element_text(size=rel(1.2), margin=margin(t=10)), axis.title.y= element_text(size=rel(1.2), margin=margin(r=20)), plot.margin = unit(c(0, 0, 0, 1),"cm"))
+
+plt_spl_4 <- ggplot(data = har, aes(x=Sampling_ID, y=Shoot_DW)) + 
+  geom_boxplot() + 
+  facet_grid(. ~ Treatment) +
+  labs(y = "Shoot_DW (mg)",
+       x = "") +
+  theme(strip.text = element_text(size = rel(1), color="white", face="bold"), strip.background = element_rect(fill="black"), panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5), margin=margin(r=1)), axis.title.x= element_text(size=rel(1.2), margin=margin(t=20)), axis.title.y= element_text(size=rel(1.2), margin=margin(r=20)), plot.margin = unit(c(0, 0, 0, 1),"cm"))
+
+plt_spl_5 <- ggplot(data = har, aes(x=Sampling_ID, y=Root_DW)) + 
+  geom_boxplot() + 
+  facet_grid(. ~ Treatment) +
+  labs(y = "Root_DW (mg)",
+       x = "") +
+  theme(strip.text = element_text(size = rel(1), color="white", face="bold"), strip.background = element_rect(fill="black"), panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5), margin=margin(r=1)), axis.title.x= element_text(size=rel(1.2), margin=margin(t=20)), axis.title.y= element_text(size=rel(1.2), margin=margin(r=20)), plot.margin = unit(c(0, 0, 0, 1),"cm"))
+
+plt_spl_6 <- ggplot(data = har, aes(x=Sampling_ID, y=Total_DW)) + 
+  geom_boxplot() + 
+  facet_grid(. ~ Treatment) +
+  labs(y = "Total_DW (mg)",
+       x = "Sampling_ID") +
+  theme(strip.text = element_text(size = rel(1), color="white", face="bold"), strip.background = element_rect(fill="black"),panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5), margin=margin(r=1)), axis.title.x= element_text(size=rel(1.2), margin=margin(t=10)), axis.title.y= element_text(size=rel(1.2), margin=margin(r=20)), plot.margin = unit(c(0, 0, 0, 1),"cm"))
+
+plt_spl_7 <- ggplot(data = har, aes(x=Day_leafN_measurement, y=leaf_N)) + 
+  geom_boxplot() + 
+  facet_grid(. ~ Treatment) +
+  labs(y = "Leaf N (%)",
+       x = "Sampling day") +
+  theme(strip.text = element_text(size = rel(1), color="white", face="bold"), strip.background = element_rect(fill="black"),panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5), margin=margin(r=1)), axis.title.x= element_text(size=rel(1.2), margin=margin(t=10)), axis.title.y= element_text(size=rel(1.2), margin=margin(r=20)), plot.margin = unit(c(0, 0, 0, 1),"cm"))
+
+plot_grid(plt_spl_1, plt_spl_4, plt_spl_2, plt_spl_5, plt_spl_3, plt_spl_6,plt_spl_7, align = "hv", nrow = 4, ncol=2)
+dev.off()
+
+
+## Plotting the effect of the different blocks (replicates) on aboveground traits
+har$Repetition <- as.factor(har$Repetition)
+png("outputs/plots/individual_RAW_Repetition.png",width=800, height=800, res=100)
+
+plt_spl_1 <- ggplot(data = har, aes(x=Repetition, y=Leaf_nb_main_stem)) + 
+  geom_boxplot() + 
+  facet_grid(. ~ Treatment) +
+  labs(y = "Leaf_nb_main_stem",
+       x = "") +
+  theme(strip.text = element_text(size = rel(1), color="white", face="bold"), strip.background = element_rect(fill="black"),
+        panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5), margin=margin(r=1)), axis.title.x= element_text(size=rel(1.2), margin=margin(t=20)), axis.title.y= element_text(size=rel(1.2), margin=margin(r=20)), plot.margin = unit(c(0, 0, 0, 1),"cm"))
+
+plt_spl_2 <- ggplot(data = har, aes(x=Repetition, y=Tiller_nb)) + 
+  geom_boxplot() + 
+  facet_grid(. ~ Treatment) +
+  labs(y = "Tiller_nb",
+       x = "") +
+  theme(strip.text = element_text(size = rel(1), color="white", face="bold"), strip.background = element_rect(fill="black"), panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5), margin=margin(r=1)), axis.title.x= element_text(size=rel(1.2), margin=margin(t=20)), axis.title.y= element_text(size=rel(1.2), margin=margin(r=20)), plot.margin = unit(c(0, 0, 0, 1),"cm"))
+
+plt_spl_3 <- ggplot(data = har, aes(x=Repetition, y=Root_Shoot_Ratio)) + 
+  geom_boxplot() + 
+  facet_grid(. ~ Treatment) +
+  labs(y = "Root:Shoot Ratio",
+       x = "Repetition") +
+  theme(strip.text = element_text(size = rel(1), color="white", face="bold"), strip.background = element_rect(fill="black"),panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5), margin=margin(r=1)), axis.title.x= element_text(size=rel(1.2), margin=margin(t=10)), axis.title.y= element_text(size=rel(1.2), margin=margin(r=20)), plot.margin = unit(c(0, 0, 0, 1),"cm"))
+
+plt_spl_4 <- ggplot(data = har, aes(x=Repetition, y=Shoot_DW)) + 
+  geom_boxplot() + 
+  facet_grid(. ~ Treatment) +
+  labs(y = "Shoot_DW (mg)",
+       x = "") +
+  theme(strip.text = element_text(size = rel(1), color="white", face="bold"), strip.background = element_rect(fill="black"), panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5), margin=margin(r=1)), axis.title.x= element_text(size=rel(1.2), margin=margin(t=20)), axis.title.y= element_text(size=rel(1.2), margin=margin(r=20)), plot.margin = unit(c(0, 0, 0, 1),"cm"))
+
+plt_spl_5 <- ggplot(data = har, aes(x=Repetition, y=Root_DW)) + 
+  geom_boxplot() + 
+  facet_grid(. ~ Treatment) +
+  labs(y = "Root_DW (mg)",
+       x = "") +
+  theme(strip.text = element_text(size = rel(1), color="white", face="bold"), strip.background = element_rect(fill="black"), panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5), margin=margin(r=1)), axis.title.x= element_text(size=rel(1.2), margin=margin(t=20)), axis.title.y= element_text(size=rel(1.2), margin=margin(r=20)), plot.margin = unit(c(0, 0, 0, 1),"cm"))
+
+plt_spl_6 <- ggplot(data = har, aes(x=Repetition, y=Total_DW)) + 
+  geom_boxplot() + 
+  facet_grid(. ~ Treatment) +
+  labs(y = "Total_DW (mg)",
+       x = "Repetition") +
+  theme(strip.text = element_text(size = rel(1), color="white", face="bold"), strip.background = element_rect(fill="black"),panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5), margin=margin(r=1)), axis.title.x= element_text(size=rel(1.2), margin=margin(t=10)), axis.title.y= element_text(size=rel(1.2), margin=margin(r=20)), plot.margin = unit(c(0, 0, 0, 1),"cm"))
+
+plt_spl_7 <- ggplot(data = har, aes(x=Repetition, y=leaf_N)) + 
+  geom_boxplot() + 
+  facet_grid(. ~ Treatment) +
+  labs(y = "Leaf N (%)",
+       x = "Repetition") +
+  theme(strip.text = element_text(size = rel(1), color="white", face="bold"), strip.background = element_rect(fill="black"),panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5), margin=margin(r=1)), axis.title.x= element_text(size=rel(1.2), margin=margin(t=10)), axis.title.y= element_text(size=rel(1.2), margin=margin(r=20)), plot.margin = unit(c(0, 0, 0, 1),"cm"))
+
+
+plot_grid(plt_spl_1, plt_spl_4, plt_spl_2, plt_spl_5, plt_spl_3, plt_spl_6,plt_spl_7, align = "hv", nrow = 4, ncol=2)
+
+dev.off()
+
+
+## Plotting the effect of the association type (Mono vs Mixt) on the different aboveground traits
+png("outputs/plots/individual_RAW_Assoc.png",width=800, height=800, res=100)
+
+plt_spl_1 <- ggplot(data = har, aes(x=Assoc, y=Leaf_nb_main_stem)) + 
+  geom_boxplot() + 
+  facet_grid(. ~ Treatment) +
+  labs(y = "Leaf_nb_main_stem",
+       x = "") +
+  theme(strip.text = element_text(size = rel(1), color="white", face="bold"), strip.background = element_rect(fill="black"),
+        panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5), margin=margin(r=1)), axis.title.x= element_text(size=rel(1.2), margin=margin(t=20)), axis.title.y= element_text(size=rel(1.2), margin=margin(r=20)), plot.margin = unit(c(0, 0, 0, 1),"cm"))
+
+plt_spl_2 <- ggplot(data = har, aes(x=Assoc, y=Tiller_nb)) + 
+  geom_boxplot() + 
+  facet_grid(. ~ Treatment) +
+  labs(y = "Tiller_nb",
+       x = "") +
+  theme(strip.text = element_text(size = rel(1), color="white", face="bold"), strip.background = element_rect(fill="black"), panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5), margin=margin(r=1)), axis.title.x= element_text(size=rel(1.2), margin=margin(t=20)), axis.title.y= element_text(size=rel(1.2), margin=margin(r=20)), plot.margin = unit(c(0, 0, 0, 1),"cm"))
+
+plt_spl_3 <- ggplot(data = har, aes(x=Assoc, y=Root_Shoot_Ratio)) + 
+  geom_boxplot() + 
+  facet_grid(. ~ Treatment) +
+  labs(y = "Root:Shoot Ratio",
+       x = "Association") +
+  theme(strip.text = element_text(size = rel(1), color="white", face="bold"), strip.background = element_rect(fill="black"),panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5), margin=margin(r=1)), axis.title.x= element_text(size=rel(1.2), margin=margin(t=10)), axis.title.y= element_text(size=rel(1.2), margin=margin(r=20)), plot.margin = unit(c(0, 0, 0, 1),"cm"))
+
+plt_spl_4 <- ggplot(data = har, aes(x=Assoc, y=Shoot_DW)) + 
+  geom_boxplot() + 
+  facet_grid(. ~ Treatment) +
+  labs(y = "Shoot_DW (mg)",
+       x = "") +
+  theme(strip.text = element_text(size = rel(1), color="white", face="bold"), strip.background = element_rect(fill="black"), panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5), margin=margin(r=1)), axis.title.x= element_text(size=rel(1.2), margin=margin(t=20)), axis.title.y= element_text(size=rel(1.2), margin=margin(r=20)), plot.margin = unit(c(0, 0, 0, 1),"cm"))
+
+plt_spl_5 <- ggplot(data = har, aes(x=Assoc, y=Root_DW)) + 
+  geom_boxplot() + 
+  facet_grid(. ~ Treatment) +
+  labs(y = "Root_DW (mg)",
+       x = "") +
+  theme(strip.text = element_text(size = rel(1), color="white", face="bold"), strip.background = element_rect(fill="black"), panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5), margin=margin(r=1)), axis.title.x= element_text(size=rel(1.2), margin=margin(t=20)), axis.title.y= element_text(size=rel(1.2), margin=margin(r=20)), plot.margin = unit(c(0, 0, 0, 1),"cm"))
+
+plt_spl_6 <- ggplot(data = har, aes(x=Assoc, y=Total_DW)) + 
+  geom_boxplot() + 
+  facet_grid(. ~ Treatment) +
+  labs(y = "Total_DW (mg)",
+       x = "Association") +
+  theme(strip.text = element_text(size = rel(1), color="white", face="bold"), strip.background = element_rect(fill="black"),panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5), margin=margin(r=1)), axis.title.x= element_text(size=rel(1.2), margin=margin(t=10)), axis.title.y= element_text(size=rel(1.2), margin=margin(r=20)), plot.margin = unit(c(0, 0, 0, 1),"cm"))
+
+plt_spl_7 <- ggplot(data = har, aes(x=Assoc, y=leaf_N)) + 
+  geom_boxplot() + 
+  facet_grid(. ~ Treatment) +
+  labs(y = "Leaf N (%)",
+       x = "Association") +
+  theme(strip.text = element_text(size = rel(1), color="white", face="bold"), strip.background = element_rect(fill="black"),panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5), margin=margin(r=1)), axis.title.x= element_text(size=rel(1.2), margin=margin(t=10)), axis.title.y= element_text(size=rel(1.2), margin=margin(r=20)), plot.margin = unit(c(0, 0, 0, 1),"cm"))
+
+
+plot_grid(plt_spl_1, plt_spl_4, plt_spl_2, plt_spl_5, plt_spl_3, plt_spl_6,plt_spl_7, align = "hv", nrow = 4, ncol=2)
+
+dev.off()
+
+
+###########################################
+#### II. ANALYSIS AT THE RHIZOTUBE LEVEL
+###########################################
+
+################################
+### INTEGRATION OF ROOT TRAIT DATA ###
+################################
+
+all_root_trait_d3 <- read.csv("data/processed_data/Root_traits_D3.csv", header=T)
+
+########## MERGING ROOT TRAIT DATA AT DATE 3 AND ABOVEGROUND DATA
+
+## Summing all aboveground trait (but leafN) per RT and per genotype
+har_ag <- aggregate(.~RT_ID+Assoc+Treatment+Repetition+Sampling_ID, data=har[,-which(colnames(har)%in%c("Plant_ID","Root_Shoot_Ratio","Comments","Focal","Neighbour","leaf_N","Day_leafN_measurement"))], FUN=sum)
+har_ag$Root_Shoot_Ratio <- har_ag$Root_DW/har_ag$Shoot_DW
+
+## Averaging LeafN per rhyzotube
+leafN_ag <- aggregate(leaf_N~RT_ID+Assoc+Treatment+Repetition+Day_leafN_measurement, data=har[,-which(colnames(har)%in%c("Plant_ID","Root_Shoot_Ratio","Comments","Focal","Neighbour"))], FUN=mean)
+
+## Merging leafN data and other aboveground traits
+har_ag <- merge(har_ag,leafN_ag,by=c("RT_ID", "Assoc", "Treatment", "Repetition"), all.x=T)
+
+## merging above and belowground data
+all_trait <- merge(har_ag, all_root_trait_d3, by=c("RT_ID", "Assoc", "Treatment", "Repetition"))
+
+## Reordering columns
+all_trait <- all_trait[,c(20,1:13,17:19)]
+
+## Plotting pot-level trait distribution
+png("outputs/plots/group_RAW_data_distribution.png", width=1000, height=1000, res=150)
+par(mfrow=c(4,3), mar=c(4,5,4,1))
+
+hist(all_trait$Leaf_nb_main_stem, las=1, main="Nb of leaves \n on the main stem", xlab="", ylab="Nb of obs", col="grey",border="white", ylim=c(0,300), xlim=c(15,40), breaks = seq(15,40, by=2.5))
+missing <- format(round(sum(is.na(all_trait$Leaf_nb_main_stem))/nrow(all_trait)*100,2), nsmall=2)
+legend("topleft", legend=c(paste("N obs = ",nrow(all_trait)), paste("%NA = ", missing, sep="")), bty="n")
+
+hist(all_trait$Tiller_nb, las=1, main="Nb of tillers", xlab="", ylab="Nb of obs", col="grey",border="white", ylim=c(0,200), xlim=c(0,35), breaks = seq(0,35, by=2.5))
+missing <- format(round(sum(is.na(all_trait$Leaf_nb_main_stem))/nrow(all_trait)*100,2), nsmall=2)
+legend("topleft", legend=c(paste("N obs = ",nrow(all_trait)), paste("%NA = ", missing, sep="")), bty="n")
+
+hist(all_trait$leaf_N, las=1, main="Leaf N (%)", xlab="", ylab="Nb of obs", col="grey",border="white")
+missing <- format(round(sum(is.na(all_trait$leaf_N))/nrow(all_trait)*100,2), nsmall=2)
+legend("topleft", legend=c(paste("N obs = ",nrow(all_trait)), paste("%NA = ", missing, sep="")), bty="n")
+
+hist(all_trait$Root_Shoot_Ratio, las=1, main="Root:Shoot Ratio", xlab="", ylab="Nb of obs", col="grey",border="white", xlim=c(0,1.3), breaks = seq(0,1.3, by=0.1), ylim=c(0,200))
+missing <- format(round(sum(is.na(all_trait$Root_Shoot_Ratio))/nrow(all_trait)*100,2), nsmall=2)
+legend("topleft", legend=c(paste("N obs = ",nrow(all_trait)), paste("%NA = ", missing, sep="")), bty="n")
+
+hist(all_trait$Shoot_DW, las=1, main="Shoot biomass (mg)", xlab="", ylab="Nb of obs", col="grey",border="white", ylim=c(0,200), xlim=c(300,3000), breaks = seq(300,3000, by=300))
+missing <- format(round(sum(is.na(all_trait$Shoot_DW))/nrow(all_trait)*100,2), nsmall=2)
+legend("topleft", legend=c(paste("N obs = ",nrow(all_trait)), paste("%NA = ", missing, sep="")), bty="n")
+
+hist(all_trait$Root_DW, las=1, main="Root biomass (mg)", xlab="", ylab="Nb of obs", col="grey",border="white", ylim=c(0,200), xlim=c(300,1500), breaks = seq(300,1500, by=100))
+missing <- format(round(sum(is.na(all_trait$Root_DW))/nrow(all_trait)*100,2), nsmall=2)
+legend("topleft", legend=c(paste("N obs = ",nrow(all_trait)), paste("%NA = ", missing, sep="")), bty="n")
+
+hist(all_trait$Total_DW, las=1, main="Total biomass (mg)", xlab="", ylab="Nb of obs", col="grey",border="white", ylim=c(0,200), xlim=c(700,4400), breaks = seq(700,4400, by=300))
+missing <- format(round(sum(is.na(all_trait$Total_DW))/nrow(all_trait)*100,2), nsmall=2)
+legend("topleft", legend=c(paste("N obs = ",nrow(all_trait)), paste("%NA = ", missing, sep="")), bty="n")
+
+hist(all_trait$BE_BoitEng_Hauteur_mm, las=1, main="Root depth (mm)", xlab="", ylab="Nb of obs", col="grey",border="white", ylim=c(0,200), xlim=c(200,500), breaks = seq(100,500, by=25))
+missing <- format(round(sum(is.na(all_trait$BE_BoitEng_Hauteur_mm))/nrow(all_trait)*100,2), nsmall=2)
+legend("topleft", legend=c(paste("N obs = ",nrow(all_trait)), paste("%NA = ", missing, sep="")), bty="n")
+
+hist(all_trait$SPUR_Squelette_Corrige_mm, las=1, main="Root length (mm)", xlab="", ylab="Nb of obs", col="grey",border="white", ylim=c(0,200), xlim=c(20000,75000), breaks = seq(20000,75000, by=5000))
+missing <- format(round(sum(is.na(all_trait$SPUR_Squelette_Corrige_mm))/nrow(all_trait)*100,2), nsmall=2)
+legend("topleft", legend=c(paste("N obs = ",nrow(all_trait)), paste("%NA = ", missing, sep="")), bty="n")
+
+hist(all_trait$SURF_Surface_Projetee_mm2, las=1, main=expression("Root Surface (mm"^2*")"), xlab="", ylab="Nb of obs", col="grey",border="white", ylim=c(0,200), xlim=c(20000,75000), breaks = seq(20000,75000, by=5000))
+missing <- format(round(sum(is.na(all_trait$SURF_Surface_Projetee_mm2))/nrow(all_trait)*100,2), nsmall=2)
+legend("topleft", legend=c(paste("N obs = ",nrow(all_trait)), paste("%NA = ", missing, sep="")), bty="n")
+
+
+dev.off()
+
+
+## Statistical analysis
+
+## 1st model for aboveground traits (including the effect of harvest date)
+# Response variable to be changed
+mod_above <- lmer(Leaf_nb_main_stem ~ Treatment + Treatment/Repetition + Sampling_ID + Assoc + Treatment:Assoc + (1+Treatment|pair) , data=all_trait)
+summary(mod_above)
+anova(mod_above, ddf = "Kenward-Roger") 
+
+set.seed(2027)
+smod <- sim(mod_above, 5000)
+svar_intercept <- apply(smod@ranef$pair[,,1],1,var)
+svar_slope <- apply(smod@ranef$pair[,,2],1,var)
+
+lme4::VarCorr(mod_above)
+quantile(svar_intercept, c(0.025, 0.975))
+quantile(svar_slope, c(0.025, 0.975))
+
+## 2nd model for leaf Nitrogen content (including the day of measurement)
+mod_leafN <- lmer(leaf_N ~ Treatment + Treatment/Repetition + Day_leafN_measurement + Assoc + Treatment:Assoc + (1+Treatment|pair) , data=all_trait)
+summary(mod_leafN)
+anova(mod_leafN, ddf = "Kenward-Roger") 
+
+set.seed(2027)
+smod <- sim(mod_leafN, 5000)
+svar_intercept <- apply(smod@ranef$pair[,,1],1,var)
+svar_slope <- apply(smod@ranef$pair[,,2],1,var)
+
+lme4::VarCorr(mod_leafN)
+quantile(svar_intercept, c(0.025, 0.975))
+quantile(svar_slope, c(0.025, 0.975))
+
+
+## 3rd model for belowground traits (w/o the effect of harvest date)
+# Response variable to be changed
+mod_below <- lmer(SURF_Surface_Projetee_mm2 ~ Treatment + Treatment/Repetition + Assoc + Treatment:Assoc + (1+Treatment|pair) , data=all_trait)
+summary(mod_below)
+anova(mod_below, ddf = "Kenward-Roger") 
+
+set.seed(2027)
+smod <- sim(mod_below, 5000)
+svar_intercept <- apply(smod@ranef$pair[,,1],1,var)
+svar_slope <- apply(smod@ranef$pair[,,2],1,var)
+
+lme4::VarCorr(mod_below)
+quantile(svar_intercept, c(0.025, 0.975))
+quantile(svar_slope, c(0.025, 0.975))
+
+## Plotting the effect of the treatment on above an belowground traits
+png("outputs/plots/pot_level_treatment_effect.png",width=1200, height=600, res=100)
+
+plt_spl_1 <- ggplot(data = all_trait, aes(x=Treatment, y=Leaf_nb_main_stem)) + 
+  geom_boxplot() + 
+  labs(y = "Leaf_nb_main_stem",
+       x = "") +
+  theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
+
+plt_spl_2 <- ggplot(data = all_trait, aes(x=Treatment, y=Tiller_nb)) + 
+  geom_boxplot() + 
+  labs(y = "Tiller_nb",
+       x = "") +
+  theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
+
+plt_spl_3 <- ggplot(data = all_trait, aes(x=Treatment, y=leaf_N)) + 
+  geom_boxplot() + 
+  labs(y = "Leaf N (%)",
+       x = "") +
+  theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
+
+
+plt_spl_4 <- ggplot(data = all_trait, aes(x=Treatment, y=Root_Shoot_Ratio)) + 
+  geom_boxplot() + 
+  labs(y = "Root_Shoot_Ratio",
+       x = "") +
+  theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
+
+plt_spl_5 <- ggplot(data = all_trait, aes(x=Treatment, y=Shoot_DW)) + 
+  geom_boxplot() + 
+  labs(y = "Shoot_DW",
+       x = "") +
+  theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
+
+plt_spl_6 <- ggplot(data = all_trait, aes(x=Treatment, y=Root_DW)) + 
+  geom_boxplot() + 
+  labs(y = "Root_DW",
+       x = "") +
+  theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
+
+plt_spl_7 <- ggplot(data = all_trait, aes(x=Treatment, y=Total_DW)) + 
+  geom_boxplot() + 
+  labs(y = "Total_DW",
+       x = "") +
+  theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
+
+plt_spl_8 <- ggplot(data = all_trait, aes(x=Treatment, y=BE_BoitEng_Hauteur_mm)) + 
+  geom_boxplot() + 
+  labs(y = "BE_BoitEng_Hauteur_mm",
+       x = "") +
+  theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
+
+plt_spl_9 <- ggplot(data = all_trait, aes(x=Treatment, y=SPUR_Squelette_Corrige_mm)) + 
+  geom_boxplot() + 
+  labs(y = "SPUR_Squelette_Corrige_mm",
+       x = "") +
+  theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
+
+plt_spl_10 <- ggplot(data = all_trait, aes(x=Treatment, y=SURF_Surface_Projetee_mm2)) + 
+  geom_boxplot() + 
+  labs(y = "SURF_Surface_Projetee_mm2",
+       x = "") +
+  theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
+
+plot_grid(plt_spl_1, plt_spl_2, plt_spl_3,plt_spl_4,plt_spl_5,plt_spl_6,plt_spl_7,plt_spl_8,plt_spl_9,plt_spl_10, align = "hv", nrow = 2, ncol=5)
+
+dev.off()
+
+## Plotting the effect of the block (replicate) on above an belowground traits
+all_trait$Repetition <- as.factor(all_trait$Repetition)
+
+png("outputs/plots/pot_level_replicate_effect.png",width=1000, height=800, res=100)
+
+plt_spl_1 <- ggplot(data = all_trait, aes(x=Repetition, y=Leaf_nb_main_stem)) + 
+  geom_boxplot() + 
+  labs(y = "Leaf_nb_main_stem",
+       x = "") +
+  theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
+
+plt_spl_2 <- ggplot(data = all_trait, aes(x=Repetition, y=Tiller_nb)) + 
+  geom_boxplot() + 
+  labs(y = "Tiller_nb",
+       x = "") +
+  theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
+
+plt_spl_3 <- ggplot(data = all_trait, aes(x=Repetition, y=leaf_N)) + 
+  geom_boxplot() + 
+  labs(y = "Leaf N (%)",
+       x = "") +
+  theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
+
+
+plt_spl_4 <- ggplot(data = all_trait, aes(x=Repetition, y=Root_Shoot_Ratio)) + 
+  geom_boxplot() + 
+  labs(y = "Root_Shoot_Ratio",
+       x = "") +
+  theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
+
+plt_spl_5 <- ggplot(data = all_trait, aes(x=Repetition, y=Shoot_DW)) + 
+  geom_boxplot() + 
+  labs(y = "Shoot_DW",
+       x = "") +
+  theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
+
+plt_spl_6 <- ggplot(data = all_trait, aes(x=Repetition, y=Root_DW)) + 
+  geom_boxplot() + 
+  labs(y = "Root_DW",
+       x = "") +
+  theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
+
+plt_spl_7 <- ggplot(data = all_trait, aes(x=Repetition, y=Total_DW)) + 
+  geom_boxplot() + 
+  labs(y = "Total_DW",
+       x = "") +
+  theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
+
+plt_spl_8 <- ggplot(data = all_trait, aes(x=Repetition, y=BE_BoitEng_Hauteur_mm)) + 
+  geom_boxplot() + 
+  labs(y = "BE_BoitEng_Hauteur_mm",
+       x = "") +
+  theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
+
+plt_spl_9 <- ggplot(data = all_trait, aes(x=Repetition, y=SPUR_Squelette_Corrige_mm)) + 
+  geom_boxplot() + 
+  labs(y = "SPUR_Squelette_Corrige_mm",
+       x = "") +
+  theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
+
+plt_spl_10 <- ggplot(data = all_trait, aes(x=Repetition, y=SURF_Surface_Projetee_mm2)) + 
+  geom_boxplot() + 
+  labs(y = "SURF_Surface_Projetee_mm2",
+       x = "") +
+  theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
+
+plot_grid(plt_spl_1, plt_spl_2, plt_spl_3,plt_spl_4,plt_spl_5,plt_spl_6,plt_spl_7,plt_spl_8,plt_spl_9,plt_spl_10, align = "hv", nrow = 2, ncol=5)
+
+dev.off()
+
+
+## Plotting the effect of the association type (Mono vs Mixt) on above an belowground traits
+png("outputs/plots/pot_level_association_effect.png",width=1000, height=800, res=100)
+
+plt_spl_1 <- ggplot(data = all_trait, aes(x=Assoc, y=Leaf_nb_main_stem)) + 
+  geom_boxplot() + 
+  labs(y = "Leaf_nb_main_stem",
+       x = "") +
+  theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
+
+plt_spl_2 <- ggplot(data = all_trait, aes(x=Assoc, y=Tiller_nb)) + 
+  geom_boxplot() + 
+  labs(y = "Tiller_nb",
+       x = "") +
+  theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
+
+plt_spl_3 <- ggplot(data = all_trait, aes(x=Assoc, y=leaf_N)) + 
+  geom_boxplot() + 
+  labs(y = "Leaf N (%)",
+       x = "") +
+  theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
+
+
+plt_spl_4 <- ggplot(data = all_trait, aes(x=Assoc, y=Root_Shoot_Ratio)) + 
+  geom_boxplot() + 
+  labs(y = "Root_Shoot_Ratio",
+       x = "") +
+  theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
+
+plt_spl_5 <- ggplot(data = all_trait, aes(x=Assoc, y=Shoot_DW)) + 
+  geom_boxplot() + 
+  labs(y = "Shoot_DW",
+       x = "") +
+  theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
+
+plt_spl_6 <- ggplot(data = all_trait, aes(x=Assoc, y=Root_DW)) + 
+  geom_boxplot() + 
+  labs(y = "Root_DW",
+       x = "") +
+  theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
+
+plt_spl_7 <- ggplot(data = all_trait, aes(x=Assoc, y=Total_DW)) + 
+  geom_boxplot() + 
+  labs(y = "Total_DW",
+       x = "") +
+  theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
+
+plt_spl_8 <- ggplot(data = all_trait, aes(x=Assoc, y=BE_BoitEng_Hauteur_mm)) + 
+  geom_boxplot() + 
+  labs(y = "BE_BoitEng_Hauteur_mm",
+       x = "") +
+  theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
+
+plt_spl_9 <- ggplot(data = all_trait, aes(x=Assoc, y=SPUR_Squelette_Corrige_mm)) + 
+  geom_boxplot() + 
+  labs(y = "SPUR_Squelette_Corrige_mm",
+       x = "") +
+  theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
+
+plt_spl_10 <- ggplot(data = all_trait, aes(x=Assoc, y=SURF_Surface_Projetee_mm2)) + 
+  geom_boxplot() + 
+  labs(y = "SURF_Surface_Projetee_mm2",
+       x = "") +
+  theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
+
+plot_grid(plt_spl_1, plt_spl_2, plt_spl_3,plt_spl_4,plt_spl_5,plt_spl_6,plt_spl_7,plt_spl_8,plt_spl_9,plt_spl_10, align = "hv", nrow = 2, ncol=5)
+
+dev.off()
+
+
+## Plotting the effect of the sampling date on aboveground traits
+all_trait$Sampling_ID <-as.factor(all_trait$Sampling_ID)
+all_trait$Day_leafN_measurement <-as.factor(all_trait$Day_leafN_measurement)
+
+png("outputs/plots/pot_level_sampling_date_effect.png",width=1000, height=600, res=100)
+
+plt_spl_1 <- ggplot(data = all_trait, aes(x=Sampling_ID, y=Leaf_nb_main_stem)) + 
+  geom_boxplot() + 
+  labs(y = "Leaf_nb_main_stem",
+       x = "") +
+  theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
+
+plt_spl_2 <- ggplot(data = all_trait, aes(x=Sampling_ID, y=Tiller_nb)) + 
+  geom_boxplot() + 
+  labs(y = "Tiller_nb",
+       x = "") +
+  theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
+
+plt_spl_3 <- ggplot(data = all_trait, aes(x=Day_leafN_measurement, y=leaf_N)) + 
+  geom_boxplot() + 
+  labs(y = "Leaf N (%)",
+       x = "") +
+  theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
+
+
+plt_spl_4 <- ggplot(data = all_trait, aes(x=Sampling_ID, y=Root_Shoot_Ratio)) + 
+  geom_boxplot() + 
+  labs(y = "Root_Shoot_Ratio",
+       x = "") +
+  theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
+
+plt_spl_5 <- ggplot(data = all_trait, aes(x=Sampling_ID, y=Shoot_DW)) + 
+  geom_boxplot() + 
+  labs(y = "Shoot_DW",
+       x = "") +
+  theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
+
+plt_spl_6 <- ggplot(data = all_trait, aes(x=Sampling_ID, y=Root_DW)) + 
+  geom_boxplot() + 
+  labs(y = "Root_DW",
+       x = "") +
+  theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
+
+plt_spl_7 <- ggplot(data = all_trait, aes(x=Sampling_ID, y=Total_DW)) + 
+  geom_boxplot() + 
+  labs(y = "Total_DW",
+       x = "") +
+  theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
+
+plt_spl_8 <- ggplot(data = all_trait, aes(x=Sampling_ID, y=BE_BoitEng_Hauteur_mm)) + 
+  geom_boxplot() + 
+  labs(y = "BE_BoitEng_Hauteur_mm",
+       x = "") +
+  theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
+
+plt_spl_9 <- ggplot(data = all_trait, aes(x=Sampling_ID, y=SPUR_Squelette_Corrige_mm)) + 
+  geom_boxplot() + 
+  labs(y = "SPUR_Squelette_Corrige_mm",
+       x = "") +
+  theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
+
+plt_spl_10 <- ggplot(data = all_trait, aes(x=Sampling_ID, y=SURF_Surface_Projetee_mm2)) + 
+  geom_boxplot() + 
+  labs(y = "SURF_Surface_Projetee_mm2",
+       x = "") +
+  theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
+
+plot_grid(plt_spl_1, plt_spl_2, plt_spl_3,plt_spl_4,plt_spl_5,plt_spl_6,plt_spl_7,plt_spl_8,plt_spl_9,plt_spl_10, align = "hv", nrow = 2, ncol=5)
+
+dev.off()
+
+
+###########################################
+#### III. COMPARING MIXTURES AND MONOCULTURES WITH RYT
+###########################################
+
+## Summing all variables per RT and per genotype
+har_ag2 <- aggregate(.~RT_ID+Focal+Neighbour+Assoc+Treatment+Repetition+Sampling_ID, data=har[,-which(colnames(har)%in%c("Plant_ID","Root_Shoot_Ratio","Comments", "leaf_N","Day_leafN_measurement"))], FUN=sum)
+har_ag2$Root_Shoot_Ratio <- har_ag2$Root_DW/har_ag2$Shoot_DW
+
+## Subsetting monoculture data
+har_ag_M <- droplevels(har_ag2[which(har_ag2$Assoc=="Monoc"),])
+har_ag_P <- droplevels(har_ag2[which(har_ag2$Assoc=="Mixt"),])
+
+## computing monoculture BLUPS
+har_ag_M$Focal <- as.factor(har_ag_M$Focal)
+blup_monoc <- data.frame(Genotype=levels(har_ag_M$Focal), Treatment=rep(c("WW","WS"), each=36))
+
+## Shoot_DW
+mod <- lmer(Shoot_DW ~  Treatment + Treatment/Repetition + Sampling_ID + (1|Focal), data=har_ag_M)
+summary(mod)
+
+blup_monoc[which(blup_monoc$Treatment=="WW"),"Shoot_DW"] <- fixef(mod)[1]+ranef(mod)$Focal[1]
+blup_monoc[which(blup_monoc$Treatment=="WS"),"Shoot_DW"] <- fixef(mod)[1]+ranef(mod)$Focal[1]+fixef(mod)[2]
+
+## Root_DW
+mod <- lmer(Root_DW ~  Treatment + Treatment/Repetition + Sampling_ID + (1|Focal), data=har_ag_M)
+summary(mod)
+
+blup_monoc[which(blup_monoc$Treatment=="WW"),"Root_DW"] <- fixef(mod)[1]+ranef(mod)$Focal[1]
+blup_monoc[which(blup_monoc$Treatment=="WS"),"Root_DW"] <- fixef(mod)[1]+ranef(mod)$Focal[1]+fixef(mod)[2]
+
+## Total_DW
+mod <- lmer(Total_DW ~  Treatment + Treatment/Repetition + Sampling_ID + (1|Focal), data=har_ag_M)
+summary(mod)
+
+blup_monoc[which(blup_monoc$Treatment=="WW"),"Total_DW"] <- fixef(mod)[1]+ranef(mod)$Focal[1]
+blup_monoc[which(blup_monoc$Treatment=="WS"),"Total_DW"] <- fixef(mod)[1]+ranef(mod)$Focal[1]+fixef(mod)[2]
+
+
+## computing mixture BLUPS
+har_ag_P$pair <- as.factor(paste(har_ag_P$Focal, har_ag_P$Neighbour, sep=";"))
+blup_mixt <- data.frame(Pair=levels(har_ag_P$pair), Treatment=rep(c("WW","WS"), each=108))
+
+## Shoot_DW
+mod <- lmer(Shoot_DW ~ Treatment + Treatment/Repetition + Sampling_ID + (1+Treatment|pair), data=har_ag_P)
+summary(mod)
+
+blup_mixt[which(blup_mixt$Treatment=="WW"),"Shoot_DW"] <- fixef(mod)[1]+ranef(mod)$pair[1]
+blup_mixt[which(blup_mixt$Treatment=="WS"),"Shoot_DW"] <- fixef(mod)[1]+fixef(mod)[2]+ranef(mod)$pair[1]+ranef(mod)$pair[2]
+
+## Root_DW
+mod <- lmer(Root_DW ~ Treatment + Treatment/Repetition + Sampling_ID + (1+Treatment|pair), data=har_ag_P)
+summary(mod)
+
+blup_mixt[which(blup_mixt$Treatment=="WW"),"Root_DW"] <- fixef(mod)[1]+ranef(mod)$pair[1]
+blup_mixt[which(blup_mixt$Treatment=="WS"),"Root_DW"] <- fixef(mod)[1]+fixef(mod)[2]+ranef(mod)$pair[1]+ranef(mod)$pair[2]
+
+## Total_DW
+mod <- lmer(Total_DW ~ Treatment + Treatment/Repetition + Sampling_ID + (1+Treatment|pair), data=har_ag_P)
+summary(mod)
+
+blup_mixt[which(blup_mixt$Treatment=="WW"),"Total_DW"] <- fixef(mod)[1]+ranef(mod)$pair[1]
+blup_mixt[which(blup_mixt$Treatment=="WS"),"Total_DW"] <- fixef(mod)[1]+fixef(mod)[2]+ranef(mod)$pair[1]+ranef(mod)$pair[2]
+
+
+## Computing RYs
+for (i in c(1:nrow(blup_mixt))) {
+  foc <- as.character(strsplit(blup_mixt[i,"Pair"], ";")[[1]][1])
+  t <- as.character(blup_mixt[i,"Treatment"]) 
+  
+  for (v in c("Shoot_DW","Root_DW","Total_DW")) {
+    blup_mixt[i,paste(v,"RY",sep="_")] <- blup_mixt[i,v]/blup_monoc[which(blup_monoc$Genotype==foc & blup_monoc$Treatment==t),v]
+  }
+}
+
+
+## Computing RYT
+for (i in c(1:nrow(blup_mixt))) {
+  
+  foc_oriented <- blup_mixt[i,"Pair"]
+  nei_oriented <- paste(strsplit(blup_mixt[i,"Pair"], ";")[[1]][2],strsplit(blup_mixt[i,"Pair"], ";")[[1]][1], sep=";")
+  
+  foc <- strsplit(blup_mixt[i,"Pair"], ";")[[1]][1]
+  nei <- strsplit(blup_mixt[i,"Pair"], ";")[[1]][2]
+  
+  t <- as.character(blup_mixt[i,"Treatment"]) 
+  
+  blup_mixt[i, "Pair_unoriented"] <- paste(sort(c(foc,nei)),collapse=";")
+  
+  for (v in c("Shoot_DW","Root_DW","Total_DW")) {
+    
+    blup_mixt[i, paste(v, "RYT",sep="_")] <- blup_mixt[which(blup_mixt$Pair==foc_oriented & blup_mixt$Treatment==t),paste(v,"RY",sep="_")] + blup_mixt[which(blup_mixt$Pair==nei_oriented & blup_mixt$Treatment==t),paste(v,"RY",sep="_")]
+    
+  }
+}
+
+RYT <- unique(blup_mixt[,c("Pair_unoriented","Treatment","Shoot_DW_RYT","Root_DW_RYT","Total_DW_RYT")])
+
+### Data distribution
+png("outputs/plots/RYT_distribution.png", width=800, height=400, res=150)
+par(mfrow=c(1,3), mar=c(4,5,4,1))
+
+hist(RYT$Shoot_DW_RYT, las=1, main="Shoot biomass (RYT)", xlab="", ylab="Nb of obs", col="grey",border="white", ylim=c(0,80), xlim=c(0.5,1.5), breaks = seq(0.5,1.5, by=0.1))
+abline(v=1, lty=2)
+missing <- format(round(sum(is.na(RYT$Shoot_DW_RYT))/nrow(RYT)*100,2), nsmall=2)
+mu <- format(round(mean(RYT$Shoot_DW_RYT, na.rm=T),2), nsmall=2)
+legend("topleft", legend=c(paste("N obs = ",nrow(RYT)), paste("%NA = ", missing, sep=""), paste("mean = ",mu,"**", sep="")), bty="n")
+
+hist(RYT$Root_DW_RYT, las=1, main="Root biomass (RYT)", xlab="", ylab="Nb of obs", col="grey",border="white", ylim=c(0,80), xlim=c(0.5,1.5), breaks = seq(0.5,1.5, by=0.1))
+abline(v=1, lty=2)
+missing <- format(round(sum(is.na(RYT$Root_DW_RYT))/nrow(RYT)*100,2), nsmall=2)
+mu <- format(round(mean(RYT$Root_DW_RYT, na.rm=T),2), nsmall=2)
+legend("topleft", legend=c(paste("N obs = ",nrow(RYT)), paste("%NA = ", missing, sep=""), paste("mean = ",mu,"***", sep="")), bty="n")
+
+hist(RYT$Total_DW_RYT, las=1, main="Total biomass (RYT)", xlab="", ylab="Nb of obs", col="grey",border="white", ylim=c(0,80), xlim=c(0.5,1.5), breaks = seq(0.5,1.5, by=0.1))
+abline(v=1, lty=2)
+missing <- format(round(sum(is.na(RYT$Total_DW_RYT))/nrow(RYT)*100,2), nsmall=2)
+mu <- format(round(mean(RYT$Total_DW_RYT, na.rm=T),2), nsmall=2)
+legend("topleft", legend=c(paste("N obs = ",nrow(RYT)), paste("%NA = ", missing, sep=""), paste("mean = ",mu,"***", sep="")), bty="n")
+
+dev.off()
+
+
+## Statistical analysis
+RYT$Treatment <- as.factor(RYT$Treatment)
+RYT$Treatment = factor(RYT$Treatment,levels(RYT$Treatment)[c(2,1)])
+
+mod <- lmer(Total_DW_RYT ~  Treatment + (1|Pair_unoriented), data=RYT)
+summary(mod) 
+anova(mod, ddf = "Kenward-Roger")
+
+set.seed(2027)
+smod <- sim(mod, 5000)
+svar_intercept <- apply(smod@ranef$Pair_unoriented[,,1],1,var)
+#svar_slope <- apply(smod@ranef$pair[,,2],1,var)
+quantile(svar_intercept, c(0.025, 0.975))
+#quantile(svar_slope, c(0.025, 0.975))
+
+## Plotting the effect of the treatment on RYT
+png("outputs/plots/pot_level_RYT_treatment_effect.png",width=800, height=400, res=100)
+
+plt_spl_1 <- ggplot(data = RYT, aes(x=Treatment, y=Shoot_DW_RYT)) + 
+  geom_boxplot() + 
+  labs(y = "Shoot_DW RYT",
+       x = "") +
+  theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5), margin=margin(r=1)), axis.title.x= element_text(size=rel(1.2), margin=margin(t=20)), axis.title.y= element_text(size=rel(1.2), margin=margin(r=20)), plot.margin = unit(c(0, 1, 0, 1),"cm"))+
+  geom_hline(yintercept=1, linetype="dashed")
+
+plt_spl_2 <- ggplot(data = RYT, aes(x=Treatment, y=Root_DW_RYT)) + 
+  geom_boxplot() + 
+  labs(y = "Root_DW RYT",
+       x = "") +
+  theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5), margin=margin(r=1)), axis.title.x= element_text(size=rel(1.2), margin=margin(t=20)), axis.title.y= element_text(size=rel(1.2), margin=margin(r=20)), plot.margin = unit(c(0, 1, 0, 1),"cm"))+
+  geom_hline(yintercept=1, linetype="dashed")
+
+plt_spl_3 <- ggplot(data = RYT, aes(x=Treatment, y=Total_DW_RYT)) + 
+  geom_boxplot() + 
+  labs(y = "Total_DW RYT",
+       x = "") +
+  theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5), margin=margin(r=1)), axis.title.x= element_text(size=rel(1.2), margin=margin(t=20)), axis.title.y= element_text(size=rel(1.2), margin=margin(r=20)), plot.margin = unit(c(0, 1, 0, 1),"cm"))+
+  geom_hline(yintercept=1, linetype="dashed")
+
+plot_grid(plt_spl_1, plt_spl_2, plt_spl_3, plt_spl_6, align = "hv", nrow = 1, ncol=3)
+
+dev.off()
+
+
+## Computing the absolute productivity of mixture pots (sum of the productivity of the 2 components)
+har_ag_P <- droplevels(har_ag[which(har_ag$Assoc=="Mixt"),])
+
+## Adding a "genotypic pair" factor which combines the identities of the two genotypes present in a given rhizotube
+for (i in c(1:nrow(har_ag_P))) {
+  RT <- as.numeric(har_ag_P[i,"RT_ID"])
+  har_ag_P[i,"Pair_unoriented"] <- paste(sort(unique(har[which(har$RT_ID==RT),"Focal"])), collapse = ";")
+}
+
+## computing mixture RAW productivity
+har_ag_P$Pair_unoriented <- as.factor(har_ag_P$Pair_unoriented)
+mixt_RAW <- data.frame(Pair_unoriented=levels(har_ag_P$Pair_unoriented), Treatment=rep(c("WW","WS"), each=54))
+
+# Shoot_DW
+mod <- lmer(Shoot_DW ~  Treatment + Treatment/Repetition + Sampling_ID + (1+Treatment|Pair_unoriented), data=har_ag_P)
+mixt_RAW[which(mixt_RAW$Treatment=="WW"),"Shoot_DW"] <- fixef(mod)[1]+ranef(mod)$Pair_unoriented[1]
+mixt_RAW[which(mixt_RAW$Treatment=="WS"),"Shoot_DW"] <- fixef(mod)[1]+ranef(mod)$Pair_unoriented[1]+fixef(mod)[2]+ranef(mod)$Pair_unoriented[2]
+
+# Root_DW
+mod <- lmer(Root_DW ~  Treatment + Treatment/Repetition + Sampling_ID + (1+Treatment|Pair_unoriented), data=har_ag_P)
+mixt_RAW[which(mixt_RAW$Treatment=="WW"),"Root_DW"] <- fixef(mod)[1]+ranef(mod)$Pair_unoriented[1]
+mixt_RAW[which(mixt_RAW$Treatment=="WS"),"Root_DW"] <- fixef(mod)[1]+ranef(mod)$Pair_unoriented[1]+fixef(mod)[2]+ranef(mod)$Pair_unoriented[2]
+
+# Total_DW
+mod <- lmer(Total_DW ~  Treatment + Treatment/Repetition + Sampling_ID + (1+Treatment|Pair_unoriented), data=har_ag_P)
+mixt_RAW[which(mixt_RAW$Treatment=="WW"),"Total_DW"] <- fixef(mod)[1]+ranef(mod)$Pair_unoriented[1]
+mixt_RAW[which(mixt_RAW$Treatment=="WS"),"Total_DW"] <- fixef(mod)[1]+ranef(mod)$Pair_unoriented[1]+fixef(mod)[2]+ranef(mod)$Pair_unoriented[2]
+
+####
+PROD <- merge(mixt_RAW, RYT[,c("Pair_unoriented","Treatment","Shoot_DW_RYT","Root_DW_RYT","Total_DW_RYT")], by=c("Pair_unoriented","Treatment"))
+
+
+#######################################
+### IV. EXPLAINING MIXTURES'RYT WITH MONOCULTURE TRAITS 
+#######################################
+
+## Computing monoculure average trait values in each treatment
+trait_monoc <- all_trait[which(all_trait$Assoc=="Monoc"),]
+for (i in c(1:nrow(trait_monoc))){
+  trait_monoc[i,"Focal"] <- strsplit(as.character(trait_monoc[i,"pair"]), ";")[[1]][1]
+}
+trait_monoc$Focal <- as.factor(trait_monoc$Focal)
+blup_trait_monoc <- data.frame(Genotype=levels(trait_monoc$Focal), Treatment=rep(c("WW","WS"), each=36))
+
+## Leaf Nb
+mod <- lmer(Leaf_nb_main_stem ~ Treatment + Treatment/Repetition + Sampling_ID + (1|Focal), data=trait_monoc)
+
+blup_trait_monoc[which(blup_trait_monoc$Treatment=="WW"),"Leaf_nb_main_stem"] <- fixef(mod)[1]+ranef(mod)$Focal[1]
+blup_trait_monoc[which(blup_trait_monoc$Treatment=="WS"),"Leaf_nb_main_stem"] <- fixef(mod)[1]+ranef(mod)$Focal[1]+fixef(mod)[2]
+
+## Tiller Nb
+mod <- lmer(Tiller_nb ~ Treatment + Treatment/Repetition + Sampling_ID + (1+Treatment|Focal), data=trait_monoc)
+
+blup_trait_monoc[which(blup_trait_monoc$Treatment=="WW"),"Tiller_nb"] <- fixef(mod)[1]+ranef(mod)$Focal[1]
+blup_trait_monoc[which(blup_trait_monoc$Treatment=="WS"),"Tiller_nb"] <- fixef(mod)[1]+ranef(mod)$Focal[1]+fixef(mod)[2]+ranef(mod)$Focal[2]
+
+## Leaf N
+mod <- lmer(leaf_N ~ Treatment + Treatment/Repetition + Day_leafN_measurement + (1+Treatment|Focal), data=trait_monoc)
+
+blup_trait_monoc[which(blup_trait_monoc$Treatment=="WW"),"leaf_N"] <- fixef(mod)[1]+ranef(mod)$Focal[1]
+blup_trait_monoc[which(blup_trait_monoc$Treatment=="WS"),"leaf_N"] <- fixef(mod)[1]+ranef(mod)$Focal[1]+fixef(mod)[2]+ranef(mod)$Focal[2]
+
+## Root prof
+mod <- lmer(BE_BoitEng_Hauteur_mm ~ Treatment + Treatment/Repetition + (1|Focal), data=trait_monoc)
+summary(mod)
+
+blup_trait_monoc[which(blup_trait_monoc$Treatment=="WW"),"BE_BoitEng_Hauteur_mm"] <- fixef(mod)[1]+ranef(mod)$Focal[1]
+blup_trait_monoc[which(blup_trait_monoc$Treatment=="WS"),"BE_BoitEng_Hauteur_mm"] <- fixef(mod)[1]+ranef(mod)$Focal[1]+fixef(mod)[2]
+
+## Root length
+mod <- lmer(SPUR_Squelette_Corrige_mm ~ Treatment + Treatment/Repetition + (1+Treatment|Focal), data=trait_monoc)
+summary(mod)
+
+blup_trait_monoc[which(blup_trait_monoc$Treatment=="WW"),"SPUR_Squelette_Corrige_mm"] <- fixef(mod)[1]+ranef(mod)$Focal[1]
+blup_trait_monoc[which(blup_trait_monoc$Treatment=="WS"),"SPUR_Squelette_Corrige_mm"] <- fixef(mod)[1]+ranef(mod)$Focal[1]+fixef(mod)[2]+ranef(mod)$Focal[2]
+
+## Root area
+mod <- lmer(SURF_Surface_Projetee_mm2 ~ Treatment + Treatment/Repetition + (1+Treatment|Focal), data=trait_monoc)
+summary(mod)
+
+blup_trait_monoc[which(blup_trait_monoc$Treatment=="WW"),"SURF_Surface_Projetee_mm2"] <- fixef(mod)[1]+ranef(mod)$Focal[1]
+blup_trait_monoc[which(blup_trait_monoc$Treatment=="WS"),"SURF_Surface_Projetee_mm2"] <- fixef(mod)[1]+ranef(mod)$Focal[1]+fixef(mod)[2]+ranef(mod)$Focal[2]
+
+## computing trait averages and trait distances for each mixture
+for (i in c(1:nrow(PROD))) {
+  geno1 <- strsplit(PROD[i,"Pair_unoriented"], ";")[[1]][1]
+  geno2 <- strsplit(PROD[i,"Pair_unoriented"], ";")[[1]][2]
+  trt <- PROD[i,"Treatment"]
+  
+  for (v in c("Leaf_nb_main_stem", "Tiller_nb", "leaf_N","BE_BoitEng_Hauteur_mm", "SPUR_Squelette_Corrige_mm", "SURF_Surface_Projetee_mm2")){
+    PROD[i,paste(v, "avg", sep="_")] <- mean(blup_trait_monoc[which(blup_trait_monoc$Treatment==trt & blup_trait_monoc$Genotype%in%c(geno1,geno2)), v])
+    PROD[i,paste(v, "dist", sep="_")] <- abs(blup_trait_monoc[which(blup_trait_monoc$Treatment==trt & blup_trait_monoc$Genotype==geno1), v]-blup_trait_monoc[which(blup_trait_monoc$Treatment==trt & blup_trait_monoc$Genotype==geno2), v])
+  }
+}
+
+##################
+#### Running model averaging ####
+##################
+
+######  GENERAL PARAMETERS ####
+N <- 10L # number of models to be retained among the best models
+w <- 0.2 # barplot width space
+conversion <- 0.005 # conversion factor to define colors on a rgb scale between [0,1]
+cols <- c(rgb(0,150*conversion,50*conversion),rgb(150*conversion,75*conversion,0),rgb(0,50*conversion,150*conversion),rgb(1,1,1))  # vector of colors to differenciate aboveground traits (green), belowground traits (brown), and phenological traits (blue)
+hgt <- 600 # image height
+wdt <- 950 # image width
+rsl <- 110 # image resolution
+
+
+## RAW VARIABLES
+
+
+## SHOOT DW - WW Treatment
+
+
+## Subsetting and scaling the data set 
+data_reg <- as.data.frame(scale(PROD[which(PROD$Treatment=="WW"),c(3,9:20)], center=T, scale = T))
+
+## Running model selection from the full_model with all traits
+full_model <- lm(Shoot_DW ~ ., data=data_reg)
+gl_multi <- glmulti(full_model, level = 1, crit = aicc, method="l", report = T)
+
+## Retrieving model-averaged estimates based on the top N models and their unconditional sampling variance
+effect_sizes <- coef(gl_multi, select=N, alphaIC=0.05)[seq(nrow(coef(gl_multi, select=N, alphaIC=0.05)),1,-1),]
+effect_sizes <- as.data.frame(effect_sizes[-grep("(Intercept)",row.names(effect_sizes)),])
+effect_sizes <- effect_sizes[order(row.names(effect_sizes), decreasing = F),]
+effect_sizes <- effect_sizes[order(effect_sizes$Importance, decreasing = T),]
+
+
+## Retrieving the AICcs and Akaike weights of the top N models. Note that the weights are not computed based on the top N models here, but based on the whole range of models evaluated by the glmulti() function. These weights will be computed again in the next step so that their sum is equal to 1.
+weights <- weightable(gl_multi)
+weights <- weights[c(1:N),]
+
+
+## Loop to build a table with several information on the top N models (AICc, delta AICc, adjusted R², conditional estimates of predictor's effect, and re-computed weights)
+var_names <- row.names(effect_sizes)
+
+info_model <- data.frame(AICc=NA, delta=NA, R2_adj=NA)
+for (i in 1:nrow(weights)) {
+  info_model[i,"AICc"] <- weights[i,"aicc"] # AICc
+  info_model[i,"delta"] <- weights[i,"aicc"]-min(weights[,"aicc"]) # delta AICc
+  info_model[i,"R2_adj"] <- summary(gl_multi@objects[[i]])$adj.r.squared # Adjusted r²
+  for (j in 1:length(var_names)){
+    info_model[i,var_names[j]] <- coef(gl_multi@objects[[i]])[var_names[j]] # estimates
+  }
+}
+
+Lik <- exp((-1/2)*info_model$delta)
+info_model$weight <- Lik/sum(Lik) # weights
+
+# Re-ordering columns
+info_model <- info_model[,c(2,ncol(info_model),3:(ncol(info_model)-1))]
+
+######
+### Plots
+########
+
+## Creating an artifical "y" variables to plot results
+effect_sizes$y <- rev(seq(0.5+w,(0.5+w)+(nrow(effect_sizes)-1)*(1+w),(1+w)))
+
+## Computing the upper and lower bounds of confidence intervals for model-averaged estimates
+effect_sizes$ub <- effect_sizes[,"Estimate"]+effect_sizes[,"+/- (alpha=0.05)"]
+effect_sizes$lb <- effect_sizes[,"Estimate"]-effect_sizes[,"+/- (alpha=0.05)"]
+
+## Defining specific vector colors to match the traits retained in the model selection & model averaging procedure
+colvec <- cols[c(1,2,1,1,1,1,2,2)]
+bgvec <- cols[c(4,4,1,1,1,4,2,2)]
+densvec <- c(20,20,-9,-9,-9,20,-9,-9)
+anglevec <- rep(45,length(colvec))
+
+
+png("outputs/plots/Model_selection_Shoot_DW_WW.png", height=hgt, width=wdt, res=rsl)
+
+par(mfrow=c(1,2))
+par(mar=c(4,5,1,1), oma=c(5,2,1,2), lwd=3)
+
+# 1st plot: estimates and confidence intervales
+plot(y~Estimate, data=effect_sizes, xlim=c(-1,1), ylim=c(0,nrow(effect_sizes)+2), xlab="Standardized estimates", ylab="", axes=F, cex=1.3, type="n", cex.lab=1.3, cex.axis=1.3)
+abline(v=0, lty=2)
+arrows(effect_sizes$Estimate,effect_sizes$y,effect_sizes$ub,effect_sizes$y, code=2, angle=90, length=0.03, col=colvec, lwd=2.5)
+arrows(effect_sizes$Estimate,effect_sizes$y,effect_sizes$lb,effect_sizes$y, code=2, angle=90, length=0.03, col=colvec, lwd=2.5)
+points(effect_sizes$Estimate, effect_sizes$y, pch=21, bg=bgvec, col=colvec, cex=1.6, lwd=1.5)
+axis(2, las=1, labels=c("Leaf Nb","Root Surf.","Leaf Nb","Leaf N","Tiller Nb","Leaf N", "Root Surf.","Root Surf."), at=effect_sizes$y, tick=F, cex.lab=1.3, cex.axis=1.5)
+axis(1, at=seq(-1,1,by=0.5), cex.lab=1.3, cex.axis=1.3)
+
+## 2nb plot: variable importance
+par(mar=c(4,1,1,1))
+barplot(rev(effect_sizes[,"Importance"]),horiz=T, col=rev(colvec), bg=rev(bgvec), xlab="Relative variable importance", space=w, width=1, density = rev(densvec), angle=rev(anglevec), ylim=c(0,nrow(effect_sizes)+2), cex.lab=1.3, cex.axis=1.3)
+
+## plot legend
+
+xlegend = -0.7
+ylegend =-(nrow(effect_sizes)+2)*(1-0.7)
+
+legend(x=xlegend,y=ylegend,legend=c(" "," "), pch=c(19,NA),fill=c(NA,"black"), bty="n", col=c("black","black"), border=c(NA,"black"), xjust=0.2, x.intersp = c(2,0.2), pt.cex = 1.5, cex=1.5, xpd=NA)
+legend(xlegend+0.02,ylegend*1.15, legend="Mean", bty="n", xpd=NA, cex=1.4)
+
+legend(x=xlegend+0.4,y=ylegend,legend=c(" "," "), pch=c(21,NA),fill=c(NA,"black"), bty="n", col=c("black","black"), border=c(NA,NA), xjust=0.2, x.intersp = c(2,0.2), pt.cex = 1.5, cex=1.5, xpd=NA, density=c(0,20))
+legend(xlegend+0.02+0.4,ylegend*1.15, legend="Dist", bty="n", xpd=NA, cex=1.4)
+
+legend(x=xlegend+0.7,y=ylegend,legend=c(" "," "), fill=c(cols[1],cols[2]), bty="n", col=c("black","black"), border=c(NA,NA), xjust=0, cex=1.5, xpd=NA)
+legend(x=xlegend+0.7,y=ylegend*1.01,legend=c("Aboveground","Belowground"), fill=c(NA,NA), bty="n", col=c(NA,NA), border=c(NA,NA), xjust=0,cex=1.4, xpd=NA)
+
+dev.off()
+
+
+## RAW VARIABLES
+## SHOOT DW - WS Treatment
+
+
+## Subsetting and scaling the data set 
+data_reg <- as.data.frame(scale(PROD[which(PROD$Treatment=="WS"),c(3,9:20)], center=T, scale = T))
+
+## Running model selection from the full_model with all traits
+full_model <- lm(Shoot_DW ~ ., data=data_reg)
+gl_multi <- glmulti(full_model, level = 1, crit = aicc, method="l", report = T)
+
+## Retrieving model-averaged estimates based on the top N models and their unconditional sampling variance
+effect_sizes <- coef(gl_multi, select=N, alphaIC=0.05)[seq(nrow(coef(gl_multi, select=N, alphaIC=0.05)),1,-1),]
+effect_sizes <- as.data.frame(effect_sizes[-grep("(Intercept)",row.names(effect_sizes)),])
+effect_sizes <- effect_sizes[order(row.names(effect_sizes), decreasing = F),]
+effect_sizes <- effect_sizes[order(effect_sizes$Importance, decreasing = T),]
+
+
+## Retrieving the AICcs and Akaike weights of the top N models. Note that the weights are not computed based on the top N models here, but based on the whole range of models evaluated by the glmulti() function. These weights will be computed again in the next step so that their sum is equal to 1.
+weights <- weightable(gl_multi)
+weights <- weights[c(1:N),]
+
+
+## Loop to build a table with several information on the top N models (AICc, delta AICc, adjusted R², conditional estimates of predictor's effect, and re-computed weights)
+var_names <- row.names(effect_sizes)
+
+info_model <- data.frame(AICc=NA, delta=NA, R2_adj=NA)
+for (i in 1:nrow(weights)) {
+  info_model[i,"AICc"] <- weights[i,"aicc"] # AICc
+  info_model[i,"delta"] <- weights[i,"aicc"]-min(weights[,"aicc"]) # delta AICc
+  info_model[i,"R2_adj"] <- summary(gl_multi@objects[[i]])$adj.r.squared # Adjusted r²
+  for (j in 1:length(var_names)){
+    info_model[i,var_names[j]] <- coef(gl_multi@objects[[i]])[var_names[j]] # estimates
+  }
+}
+
+Lik <- exp((-1/2)*info_model$delta)
+info_model$weight <- Lik/sum(Lik) # weights
+
+# Re-ordering columns
+info_model <- info_model[,c(2,ncol(info_model),3:(ncol(info_model)-1))]
+
+######
+### Plots
+########
+
+## Creating an artifical "y" variables to plot results
+effect_sizes$y <- rev(seq(0.5+w,(0.5+w)+(nrow(effect_sizes)-1)*(1+w),(1+w)))
+
+## Computing the upper and lower bounds of confidence intervals for model-averaged estimates
+effect_sizes$ub <- effect_sizes[,"Estimate"]+effect_sizes[,"+/- (alpha=0.05)"]
+effect_sizes$lb <- effect_sizes[,"Estimate"]-effect_sizes[,"+/- (alpha=0.05)"]
+
+## Defining specific vector colors to match the traits retained in the model selection & model averaging procedure
+colvec <- cols[c(2,1,1,2,1,2,2,1)]
+bgvec <- cols[c(2,4,1,2,1,4,4,4)]
+densvec <- c(-9,20,-9,-9,-9,20,20,20)
+anglevec <- rep(45,length(colvec))
+
+
+png("outputs/plots/Model_selection_Shoot_DW_WS.png", height=hgt, width=wdt, res=rsl)
+
+par(mfrow=c(1,2))
+par(mar=c(4,5,1,1), oma=c(5,2,1,2), lwd=3)
+
+# 1st plot: estimates and confidence intervales
+plot(y~Estimate, data=effect_sizes, xlim=c(-1,1), ylim=c(0,nrow(effect_sizes)+2), xlab="Standardized estimates", ylab="", axes=F, cex=1.3, type="n", cex.lab=1.3, cex.axis=1.3)
+abline(v=0, lty=2)
+arrows(effect_sizes$Estimate,effect_sizes$y,effect_sizes$ub,effect_sizes$y, code=2, angle=90, length=0.03, col=colvec, lwd=2.5)
+arrows(effect_sizes$Estimate,effect_sizes$y,effect_sizes$lb,effect_sizes$y, code=2, angle=90, length=0.03, col=colvec, lwd=2.5)
+points(effect_sizes$Estimate, effect_sizes$y, pch=21, bg=bgvec, col=colvec, cex=1.6, lwd=1.5)
+axis(2, las=1, labels=c("Root Surf.","Leaf Nb","Leaf Nb","Root Len.","Tiller Nb", "Root Surf.", "Root Len.", "Leaf N"), at=effect_sizes$y, tick=F, cex.lab=1.3, cex.axis=1.5) 
+axis(1, at=seq(-1,1,by=0.5), cex.lab=1.3, cex.axis=1.3)
+
+## 2nb plot: variable importance
+par(mar=c(4,1,1,1))
+barplot(rev(effect_sizes[,"Importance"]),horiz=T, col=rev(colvec), bg=rev(bgvec), xlab="Relative variable importance", space=w, width=1, density = rev(densvec), angle=rev(anglevec), ylim=c(0,nrow(effect_sizes)+2), cex.lab=1.3, cex.axis=1.3)
+
+## plot legend
+
+xlegend = -0.7
+ylegend =-(nrow(effect_sizes)+2)*(1-0.7)
+
+legend(x=xlegend,y=ylegend,legend=c(" "," "), pch=c(19,NA),fill=c(NA,"black"), bty="n", col=c("black","black"), border=c(NA,"black"), xjust=0.2, x.intersp = c(2,0.2), pt.cex = 1.5, cex=1.5, xpd=NA)
+legend(xlegend+0.02,ylegend*1.15, legend="Mean", bty="n", xpd=NA, cex=1.4)
+
+legend(x=xlegend+0.4,y=ylegend,legend=c(" "," "), pch=c(21,NA),fill=c(NA,"black"), bty="n", col=c("black","black"), border=c(NA,NA), xjust=0.2, x.intersp = c(2,0.2), pt.cex = 1.5, cex=1.5, xpd=NA, density=c(0,20))
+legend(xlegend+0.02+0.4,ylegend*1.15, legend="Dist", bty="n", xpd=NA, cex=1.4)
+
+legend(x=xlegend+0.7,y=ylegend,legend=c(" "," "), fill=c(cols[1],cols[2]), bty="n", col=c("black","black"), border=c(NA,NA), xjust=0, cex=1.5, xpd=NA)
+legend(x=xlegend+0.7,y=ylegend*1.01,legend=c("Aboveground","Belowground"), fill=c(NA,NA), bty="n", col=c(NA,NA), border=c(NA,NA), xjust=0,cex=1.4, xpd=NA)
+
+
+dev.off()
+
+## RAW VARIABLES
+## ROOT DW - WW Treatment
+
+## Subsetting and scaling the data set 
+data_reg <- as.data.frame(scale(PROD[which(PROD$Treatment=="WW"),c(4,9:20)], center=T, scale = T))
+
+## Running model selection from the full_model with all traits
+full_model <- lm(Root_DW ~ ., data=data_reg)
+gl_multi <- glmulti(full_model, level = 1, crit = aicc, method="l", report = T)
+
+## Retrieving model-averaged estimates based on the top N models and their unconditional sampling variance
+effect_sizes <- coef(gl_multi, select=N, alphaIC=0.05)[seq(nrow(coef(gl_multi, select=N, alphaIC=0.05)),1,-1),]
+effect_sizes <- as.data.frame(effect_sizes[-grep("(Intercept)",row.names(effect_sizes)),])
+effect_sizes <- effect_sizes[order(row.names(effect_sizes), decreasing = F),]
+effect_sizes <- effect_sizes[order(effect_sizes$Importance, decreasing = T),]
+
+
+## Retrieving the AICcs and Akaike weights of the top N models. Note that the weights are not computed based on the top N models here, but based on the whole range of models evaluated by the glmulti() function. These weights will be computed again in the next step so that their sum is equal to 1.
+weights <- weightable(gl_multi)
+weights <- weights[c(1:N),]
+
+
+## Loop to build a table with several information on the top N models (AICc, delta AICc, adjusted R², conditional estimates of predictor's effect, and re-computed weights)
+var_names <- row.names(effect_sizes)
+
+info_model <- data.frame(AICc=NA, delta=NA, R2_adj=NA)
+for (i in 1:nrow(weights)) {
+  info_model[i,"AICc"] <- weights[i,"aicc"] # AICc
+  info_model[i,"delta"] <- weights[i,"aicc"]-min(weights[,"aicc"]) # delta AICc
+  info_model[i,"R2_adj"] <- summary(gl_multi@objects[[i]])$adj.r.squared # Adjusted r²
+  for (j in 1:length(var_names)){
+    info_model[i,var_names[j]] <- coef(gl_multi@objects[[i]])[var_names[j]] # estimates
+  }
+}
+
+Lik <- exp((-1/2)*info_model$delta)
+info_model$weight <- Lik/sum(Lik) # weights
+
+# Re-ordering columns
+info_model <- info_model[,c(2,ncol(info_model),3:(ncol(info_model)-1))]
+
+######
+### Plots
+########
+
+## Creating an artifical "y" variables to plot results
+effect_sizes$y <- rev(seq(0.5+w,(0.5+w)+(nrow(effect_sizes)-1)*(1+w),(1+w)))
+
+## Computing the upper and lower bounds of confidence intervals for model-averaged estimates
+effect_sizes$ub <- effect_sizes[,"Estimate"]+effect_sizes[,"+/- (alpha=0.05)"]
+effect_sizes$lb <- effect_sizes[,"Estimate"]-effect_sizes[,"+/- (alpha=0.05)"]
+
+## Defining specific vector colors to match the traits retained in the model selection & model averaging procedure
+colvec <- cols[c(2,1,2,1,2,2,1,2,1)]
+bgvec <- cols[c(4,1,2,4,4,4,4,2,1)]
+densvec <- c(20,-9,-9,20,20,20,20,-9,-9)
+anglevec <- rep(45,length(colvec))
+
+
+png("outputs/plots/Model_selection_Root_DW_WW.png", height=hgt, width=wdt, res=rsl)
+
+par(mfrow=c(1,2))
+par(mar=c(4,5,1,1), oma=c(5,2,1,2), lwd=3)
+
+# 1st plot: estimates and confidence intervales
+plot(y~Estimate, data=effect_sizes, xlim=c(-1,1), ylim=c(0,nrow(effect_sizes)+2), xlab="Standardized estimates", ylab="", axes=F, cex=1.3, type="n", cex.lab=1.3, cex.axis=1.3)
+abline(v=0, lty=2)
+arrows(effect_sizes$Estimate,effect_sizes$y,effect_sizes$ub,effect_sizes$y, code=2, angle=90, length=0.03, col=colvec, lwd=2.5)
+arrows(effect_sizes$Estimate,effect_sizes$y,effect_sizes$lb,effect_sizes$y, code=2, angle=90, length=0.03, col=colvec, lwd=2.5)
+points(effect_sizes$Estimate, effect_sizes$y, pch=21, bg=bgvec, col=colvec, cex=1.6, lwd=1.5)
+axis(2, las=1, labels=c("Root Surf.","Leaf N","Root prof.","Leaf Nb","Root prof.","Root Len.","Tiller Nb","Root surf.", "Leaf Nb"), at=effect_sizes$y, tick=F, cex.lab=1.3, cex.axis=1.5) 
+axis(1, at=seq(-1,1,by=0.5), cex.lab=1.3, cex.axis=1.3)
+
+## 2nb plot: variable importance
+par(mar=c(4,1,1,1))
+barplot(rev(effect_sizes[,"Importance"]),horiz=T, col=rev(colvec), bg=rev(bgvec), xlab="Relative variable importance", space=w, width=1, density = rev(densvec), angle=rev(anglevec), ylim=c(0,nrow(effect_sizes)+2), cex.lab=1.3, cex.axis=1.3)
+
+## plot legend
+
+xlegend = -0.7
+ylegend =-(nrow(effect_sizes)+2)*(1-0.7)
+
+legend(x=xlegend,y=ylegend,legend=c(" "," "), pch=c(19,NA),fill=c(NA,"black"), bty="n", col=c("black","black"), border=c(NA,"black"), xjust=0.2, x.intersp = c(2,0.2), pt.cex = 1.5, cex=1.5, xpd=NA)
+legend(xlegend+0.02,ylegend*1.15, legend="Mean", bty="n", xpd=NA, cex=1.4)
+
+legend(x=xlegend+0.4,y=ylegend,legend=c(" "," "), pch=c(21,NA),fill=c(NA,"black"), bty="n", col=c("black","black"), border=c(NA,NA), xjust=0.2, x.intersp = c(2,0.2), pt.cex = 1.5, cex=1.5, xpd=NA, density=c(0,20))
+legend(xlegend+0.02+0.4,ylegend*1.15, legend="Dist", bty="n", xpd=NA, cex=1.4)
+
+legend(x=xlegend+0.7,y=ylegend,legend=c(" "," "), fill=c(cols[1],cols[2]), bty="n", col=c("black","black"), border=c(NA,NA), xjust=0, cex=1.5, xpd=NA)
+legend(x=xlegend+0.7,y=ylegend*1.01,legend=c("Aboveground","Belowground"), fill=c(NA,NA), bty="n", col=c(NA,NA), border=c(NA,NA), xjust=0,cex=1.4, xpd=NA)
+
+dev.off()
+
+
+## RAW VARIABLES
+## ROOT DW - WS Treatment
+
+## Subsetting and scaling the data set 
+data_reg <- as.data.frame(scale(PROD[which(PROD$Treatment=="WS"),c(4,9:20)], center=T, scale = T))
+
+## Running model selection from the full_model with all traits
+full_model <- lm(Root_DW ~ ., data=data_reg)
+gl_multi <- glmulti(full_model, level = 1, crit = aicc, method="l", report = T)
+
+## Retrieving model-averaged estimates based on the top N models and their unconditional sampling variance
+effect_sizes <- coef(gl_multi, select=N, alphaIC=0.05)[seq(nrow(coef(gl_multi, select=N, alphaIC=0.05)),1,-1),]
+effect_sizes <- as.data.frame(effect_sizes[-grep("(Intercept)",row.names(effect_sizes)),])
+effect_sizes <- effect_sizes[order(row.names(effect_sizes), decreasing = F),]
+effect_sizes <- effect_sizes[order(effect_sizes$Importance, decreasing = T),]
+
+
+## Retrieving the AICcs and Akaike weights of the top N models. Note that the weights are not computed based on the top N models here, but based on the whole range of models evaluated by the glmulti() function. These weights will be computed again in the next step so that their sum is equal to 1.
+weights <- weightable(gl_multi)
+weights <- weights[c(1:N),]
+
+
+## Loop to build a table with several information on the top N models (AICc, delta AICc, adjusted R², conditional estimates of predictor's effect, and re-computed weights)
+var_names <- row.names(effect_sizes)
+
+info_model <- data.frame(AICc=NA, delta=NA, R2_adj=NA)
+for (i in 1:nrow(weights)) {
+  info_model[i,"AICc"] <- weights[i,"aicc"] # AICc
+  info_model[i,"delta"] <- weights[i,"aicc"]-min(weights[,"aicc"]) # delta AICc
+  info_model[i,"R2_adj"] <- summary(gl_multi@objects[[i]])$adj.r.squared # Adjusted r²
+  for (j in 1:length(var_names)){
+    info_model[i,var_names[j]] <- coef(gl_multi@objects[[i]])[var_names[j]] # estimates
+  }
+}
+
+Lik <- exp((-1/2)*info_model$delta)
+info_model$weight <- Lik/sum(Lik) # weights
+
+# Re-ordering columns
+info_model <- info_model[,c(2,ncol(info_model),3:(ncol(info_model)-1))]
+
+######
+### Plots
+########
+
+## Creating an artifical "y" variables to plot results
+effect_sizes$y <- rev(seq(0.5+w,(0.5+w)+(nrow(effect_sizes)-1)*(1+w),(1+w)))
+
+## Computing the upper and lower bounds of confidence intervals for model-averaged estimates
+effect_sizes$ub <- effect_sizes[,"Estimate"]+effect_sizes[,"+/- (alpha=0.05)"]
+effect_sizes$lb <- effect_sizes[,"Estimate"]-effect_sizes[,"+/- (alpha=0.05)"]
+
+## Defining specific vector colors to match the traits retained in the model selection & model averaging procedure
+colvec <- cols[c(2,2,1,2,2,2,2,1,1,1)]
+bgvec <- cols[c(2,2,4,2,4,4,4,1,4,4)]
+densvec <- c(-9,-9,20,-9,20,20,20,-9,20,20)
+anglevec <- rep(45,length(colvec))
+
+
+png("outputs/plots/Model_selection_Root_DW_WS.png", height=hgt, width=wdt, res=rsl)
+
+par(mfrow=c(1,2))
+par(mar=c(4,5,1,1), oma=c(5,2,1,2), lwd=3)
+
+# 1st plot: estimates and confidence intervales
+plot(y~Estimate, data=effect_sizes, xlim=c(-1,1), ylim=c(0,nrow(effect_sizes)+2), xlab="Standardized estimates", ylab="", axes=F, cex=1.3, type="n", cex.lab=1.3, cex.axis=1.3)
+abline(v=0, lty=2)
+arrows(effect_sizes$Estimate,effect_sizes$y,effect_sizes$ub,effect_sizes$y, code=2, angle=90, length=0.03, col=colvec, lwd=2.5)
+arrows(effect_sizes$Estimate,effect_sizes$y,effect_sizes$lb,effect_sizes$y, code=2, angle=90, length=0.03, col=colvec, lwd=2.5)
+points(effect_sizes$Estimate, effect_sizes$y, pch=21, bg=bgvec, col=colvec, cex=1.6, lwd=1.5)
+axis(2, las=1, labels=c("Root Surf.","Root Len.","Leaf N", "Root Prof.","Root Surf.","Root Len.","Root Prof.","Leaf Nb", "Leaf Nb", "Tiller Nb"), at=effect_sizes$y, tick=F, cex.lab=1.3, cex.axis=1.5) 
+axis(1, at=seq(-1,1,by=0.5), cex.lab=1.3, cex.axis=1.3)
+
+## 2nb plot: variable importance
+par(mar=c(4,1,1,1))
+barplot(rev(effect_sizes[,"Importance"]),horiz=T, col=rev(colvec), bg=rev(bgvec), xlab="Relative variable importance", space=w, width=1, density = rev(densvec), angle=rev(anglevec), ylim=c(0,nrow(effect_sizes)+2), cex.lab=1.3, cex.axis=1.3)
+
+## plot legend
+
+xlegend = -0.7
+ylegend =-(nrow(effect_sizes)+2)*(1-0.7)
+
+legend(x=xlegend,y=ylegend,legend=c(" "," "), pch=c(19,NA),fill=c(NA,"black"), bty="n", col=c("black","black"), border=c(NA,"black"), xjust=0.2, x.intersp = c(2,0.2), pt.cex = 1.5, cex=1.5, xpd=NA)
+legend(xlegend+0.02,ylegend*1.15, legend="Mean", bty="n", xpd=NA, cex=1.4)
+
+legend(x=xlegend+0.4,y=ylegend,legend=c(" "," "), pch=c(21,NA),fill=c(NA,"black"), bty="n", col=c("black","black"), border=c(NA,NA), xjust=0.2, x.intersp = c(2,0.2), pt.cex = 1.5, cex=1.5, xpd=NA, density=c(0,20))
+legend(xlegend+0.02+0.4,ylegend*1.15, legend="Dist", bty="n", xpd=NA, cex=1.4)
+
+legend(x=xlegend+0.7,y=ylegend,legend=c(" "," "), fill=c(cols[1],cols[2]), bty="n", col=c("black","black"), border=c(NA,NA), xjust=0, cex=1.5, xpd=NA)
+legend(x=xlegend+0.7,y=ylegend*1.01,legend=c("Aboveground","Belowground"), fill=c(NA,NA), bty="n", col=c(NA,NA), border=c(NA,NA), xjust=0,cex=1.4, xpd=NA)
+
+dev.off()
+
+## RAW VARIABLES
+## Total DW - WW Treatment
+
+## Subsetting and scaling the data set 
+data_reg <- as.data.frame(scale(PROD[which(PROD$Treatment=="WW"),c(5,9:20)], center=T, scale = T))
+
+## Running model selection from the full_model with all traits
+full_model <- lm(Total_DW ~ ., data=data_reg)
+gl_multi <- glmulti(full_model, level = 1, crit = aicc, method="l", report = T)
+
+## Retrieving model-averaged estimates based on the top N models and their unconditional sampling variance
+effect_sizes <- coef(gl_multi, select=N, alphaIC=0.05)[seq(nrow(coef(gl_multi, select=N, alphaIC=0.05)),1,-1),]
+effect_sizes <- as.data.frame(effect_sizes[-grep("(Intercept)",row.names(effect_sizes)),])
+effect_sizes <- effect_sizes[order(row.names(effect_sizes), decreasing = F),]
+effect_sizes <- effect_sizes[order(effect_sizes$Importance, decreasing = T),]
+
+
+## Retrieving the AICcs and Akaike weights of the top N models. Note that the weights are not computed based on the top N models here, but based on the whole range of models evaluated by the glmulti() function. These weights will be computed again in the next step so that their sum is equal to 1.
+weights <- weightable(gl_multi)
+weights <- weights[c(1:N),]
+
+
+## Loop to build a table with several information on the top N models (AICc, delta AICc, adjusted R², conditional estimates of predictor's effect, and re-computed weights)
+var_names <- row.names(effect_sizes)
+
+info_model <- data.frame(AICc=NA, delta=NA, R2_adj=NA)
+for (i in 1:nrow(weights)) {
+  info_model[i,"AICc"] <- weights[i,"aicc"] # AICc
+  info_model[i,"delta"] <- weights[i,"aicc"]-min(weights[,"aicc"]) # delta AICc
+  info_model[i,"R2_adj"] <- summary(gl_multi@objects[[i]])$adj.r.squared # Adjusted r²
+  for (j in 1:length(var_names)){
+    info_model[i,var_names[j]] <- coef(gl_multi@objects[[i]])[var_names[j]] # estimates
+  }
+}
+
+Lik <- exp((-1/2)*info_model$delta)
+info_model$weight <- Lik/sum(Lik) # weights
+
+# Re-ordering columns
+info_model <- info_model[,c(2,ncol(info_model),3:(ncol(info_model)-1))]
+
+######
+### Plots
+########
+
+## Creating an artifical "y" variables to plot results
+effect_sizes$y <- rev(seq(0.5+w,(0.5+w)+(nrow(effect_sizes)-1)*(1+w),(1+w)))
+
+## Computing the upper and lower bounds of confidence intervals for model-averaged estimates
+effect_sizes$ub <- effect_sizes[,"Estimate"]+effect_sizes[,"+/- (alpha=0.05)"]
+effect_sizes$lb <- effect_sizes[,"Estimate"]-effect_sizes[,"+/- (alpha=0.05)"]
+
+## Defining specific vector colors to match the traits retained in the model selection & model averaging procedure
+colvec <- cols[c(1,2,1,1,1,2,2,2,1)]
+bgvec <- cols[c(4,4,1,1,1,2,4,4,4)]
+densvec <- c(20,20,-9,-9,-9,-9,20,20,20)
+anglevec <- rep(45,length(colvec))
+
+
+png("outputs/plots/Model_selection_Total_DW_WW.png", height=hgt, width=wdt, res=rsl)
+
+par(mfrow=c(1,2))
+par(mar=c(4,5,1,1), oma=c(5,2,1,2), lwd=3)
+
+# 1st plot: estimates and confidence intervales
+plot(y~Estimate, data=effect_sizes, xlim=c(-1,1), ylim=c(0,nrow(effect_sizes)+2), xlab="Standardized estimates", ylab="", axes=F, cex=1.3, type="n", cex.lab=1.3, cex.axis=1.3)
+abline(v=0, lty=2)
+arrows(effect_sizes$Estimate,effect_sizes$y,effect_sizes$ub,effect_sizes$y, code=2, angle=90, length=0.03, col=colvec, lwd=2.5)
+arrows(effect_sizes$Estimate,effect_sizes$y,effect_sizes$lb,effect_sizes$y, code=2, angle=90, length=0.03, col=colvec, lwd=2.5)
+points(effect_sizes$Estimate, effect_sizes$y, pch=21, bg=bgvec, col=colvec, cex=1.6, lwd=1.5)
+axis(2, las=1, labels=c("Leaf Nb","Root Surf.","Leaf N", "Leaf Nb", "Tiller Nb","Root Surf.", "Root Prof.", "Root Len.", "Leaf N"), at=effect_sizes$y, tick=F, cex.lab=1.3, cex.axis=1.5) 
+axis(1, at=seq(-1,1,by=0.5), cex.lab=1.3, cex.axis=1.3)
+
+## 2nb plot: variable importance
+par(mar=c(4,1,1,1))
+barplot(rev(effect_sizes[,"Importance"]),horiz=T, col=rev(colvec), bg=rev(bgvec), xlab="Relative variable importance", space=w, width=1, density = rev(densvec), angle=rev(anglevec), ylim=c(0,nrow(effect_sizes)+2), cex.lab=1.3, cex.axis=1.3)
+
+## plot legend
+
+xlegend = -0.7
+ylegend =-(nrow(effect_sizes)+2)*(1-0.7)
+
+legend(x=xlegend,y=ylegend,legend=c(" "," "), pch=c(19,NA),fill=c(NA,"black"), bty="n", col=c("black","black"), border=c(NA,"black"), xjust=0.2, x.intersp = c(2,0.2), pt.cex = 1.5, cex=1.5, xpd=NA)
+legend(xlegend+0.02,ylegend*1.15, legend="Mean", bty="n", xpd=NA, cex=1.4)
+
+legend(x=xlegend+0.4,y=ylegend,legend=c(" "," "), pch=c(21,NA),fill=c(NA,"black"), bty="n", col=c("black","black"), border=c(NA,NA), xjust=0.2, x.intersp = c(2,0.2), pt.cex = 1.5, cex=1.5, xpd=NA, density=c(0,20))
+legend(xlegend+0.02+0.4,ylegend*1.15, legend="Dist", bty="n", xpd=NA, cex=1.4)
+
+legend(x=xlegend+0.7,y=ylegend,legend=c(" "," "), fill=c(cols[1],cols[2]), bty="n", col=c("black","black"), border=c(NA,NA), xjust=0, cex=1.5, xpd=NA)
+legend(x=xlegend+0.7,y=ylegend*1.01,legend=c("Aboveground","Belowground"), fill=c(NA,NA), bty="n", col=c(NA,NA), border=c(NA,NA), xjust=0,cex=1.4, xpd=NA)
+
+dev.off()
+
+
+## RAW VARIABLES
+## Total DW - WS Treatment
+
+## Subsetting and scaling the data set 
+data_reg <- as.data.frame(scale(PROD[which(PROD$Treatment=="WS"),c(5,9:20)], center=T, scale = T))
+
+## Running model selection from the full_model with all traits
+full_model <- lm(Total_DW ~ ., data=data_reg)
+gl_multi <- glmulti(full_model, level = 1, crit = aicc, method="l", report = T)
+
+## Retrieving model-averaged estimates based on the top N models and their unconditional sampling variance
+effect_sizes <- coef(gl_multi, select=N, alphaIC=0.05)[seq(nrow(coef(gl_multi, select=N, alphaIC=0.05)),1,-1),]
+effect_sizes <- as.data.frame(effect_sizes[-grep("(Intercept)",row.names(effect_sizes)),])
+effect_sizes <- effect_sizes[order(row.names(effect_sizes), decreasing = F),]
+effect_sizes <- effect_sizes[order(effect_sizes$Importance, decreasing = T),]
+
+
+## Retrieving the AICcs and Akaike weights of the top N models. Note that the weights are not computed based on the top N models here, but based on the whole range of models evaluated by the glmulti() function. These weights will be computed again in the next step so that their sum is equal to 1.
+weights <- weightable(gl_multi)
+weights <- weights[c(1:N),]
+
+
+## Loop to build a table with several information on the top N models (AICc, delta AICc, adjusted R², conditional estimates of predictor's effect, and re-computed weights)
+var_names <- row.names(effect_sizes)
+
+info_model <- data.frame(AICc=NA, delta=NA, R2_adj=NA)
+for (i in 1:nrow(weights)) {
+  info_model[i,"AICc"] <- weights[i,"aicc"] # AICc
+  info_model[i,"delta"] <- weights[i,"aicc"]-min(weights[,"aicc"]) # delta AICc
+  info_model[i,"R2_adj"] <- summary(gl_multi@objects[[i]])$adj.r.squared # Adjusted r²
+  for (j in 1:length(var_names)){
+    info_model[i,var_names[j]] <- coef(gl_multi@objects[[i]])[var_names[j]] # estimates
+  }
+}
+
+Lik <- exp((-1/2)*info_model$delta)
+info_model$weight <- Lik/sum(Lik) # weights
+
+# Re-ordering columns
+info_model <- info_model[,c(2,ncol(info_model),3:(ncol(info_model)-1))]
+
+######
+### Plots
+########
+
+## Creating an artifical "y" variables to plot results
+effect_sizes$y <- rev(seq(0.5+w,(0.5+w)+(nrow(effect_sizes)-1)*(1+w),(1+w)))
+
+## Computing the upper and lower bounds of confidence intervals for model-averaged estimates
+effect_sizes$ub <- effect_sizes[,"Estimate"]+effect_sizes[,"+/- (alpha=0.05)"]
+effect_sizes$lb <- effect_sizes[,"Estimate"]-effect_sizes[,"+/- (alpha=0.05)"]
+
+## Defining specific vector colors to match the traits retained in the model selection & model averaging procedure
+colvec <- cols[c(2,2,1,1,1,2,1,2)]
+bgvec <- cols[c(2,2,1,4,4,2,1,2)]
+densvec <- c(-9,-9,-9,20,20,-9,-9,20)
+anglevec <- rep(45,length(colvec))
+
+png("outputs/plots/Model_selection_Total_DW_WS.png", height=hgt, width=wdt, res=rsl)
+
+par(mfrow=c(1,2))
+par(mar=c(4,5,1,1), oma=c(5,2,1,2), lwd=3)
+
+# 1st plot: estimates and confidence intervales
+plot(y~Estimate, data=effect_sizes, xlim=c(-1,1), ylim=c(0,nrow(effect_sizes)+2), xlab="Standardized estimates", ylab="", axes=F, cex=1.3, type="n", cex.lab=1.3, cex.axis=1.3)
+abline(v=0, lty=2)
+arrows(effect_sizes$Estimate,effect_sizes$y,effect_sizes$ub,effect_sizes$y, code=2, angle=90, length=0.03, col=colvec, lwd=2.5)
+arrows(effect_sizes$Estimate,effect_sizes$y,effect_sizes$lb,effect_sizes$y, code=2, angle=90, length=0.03, col=colvec, lwd=2.5)
+points(effect_sizes$Estimate, effect_sizes$y, pch=21, bg=bgvec, col=colvec, cex=1.6, lwd=1.5)
+axis(2, las=1, labels=c("Root Surf.","Root Len.","Leaf Nb","Leaf Nb","Tiller Nb", "Root Prof.", "Tiller Nb", "Root Prof."), at=effect_sizes$y, tick=F, cex.lab=1.3, cex.axis=1.5) 
+axis(1, at=seq(-1,1,by=0.5), cex.lab=1.3, cex.axis=1.3)
+
+## 2nb plot: variable importance
+par(mar=c(4,1,1,1))
+barplot(rev(effect_sizes[,"Importance"]),horiz=T, col=rev(colvec), bg=rev(bgvec), xlab="Relative variable importance", space=w, width=1, density = rev(densvec), angle=rev(anglevec), ylim=c(0,nrow(effect_sizes)+2), cex.lab=1.3, cex.axis=1.3)
+
+## plot legend
+
+xlegend = -0.7
+ylegend =-(nrow(effect_sizes)+2)*(1-0.7)
+
+legend(x=xlegend,y=ylegend,legend=c(" "," "), pch=c(19,NA),fill=c(NA,"black"), bty="n", col=c("black","black"), border=c(NA,"black"), xjust=0.2, x.intersp = c(2,0.2), pt.cex = 1.5, cex=1.5, xpd=NA)
+legend(xlegend+0.02,ylegend*1.15, legend="Mean", bty="n", xpd=NA, cex=1.4)
+
+legend(x=xlegend+0.4,y=ylegend,legend=c(" "," "), pch=c(21,NA),fill=c(NA,"black"), bty="n", col=c("black","black"), border=c(NA,NA), xjust=0.2, x.intersp = c(2,0.2), pt.cex = 1.5, cex=1.5, xpd=NA, density=c(0,20))
+legend(xlegend+0.02+0.4,ylegend*1.15, legend="Dist", bty="n", xpd=NA, cex=1.4)
+
+legend(x=xlegend+0.7,y=ylegend,legend=c(" "," "), fill=c(cols[1],cols[2]), bty="n", col=c("black","black"), border=c(NA,NA), xjust=0, cex=1.5, xpd=NA)
+legend(x=xlegend+0.7,y=ylegend*1.01,legend=c("Aboveground","Belowground"), fill=c(NA,NA), bty="n", col=c(NA,NA), border=c(NA,NA), xjust=0,cex=1.4, xpd=NA)
+
+dev.off()
+
+
+## RYT VARIABLES
+## Shoot DW - WW Treatment
+
+## Subsetting and scaling the data set 
+data_reg <- as.data.frame(scale(PROD[which(PROD$Treatment=="WW"),c(6,9:20)], center=T, scale = T))
+
+## Running model selection from the full_model with all traits
+full_model <- lm(Shoot_DW_RYT ~ ., data=data_reg)
+gl_multi <- glmulti(full_model, level = 1, crit = aicc, method="l", report = T)
+
+## Retrieving model-averaged estimates based on the top N models and their unconditional sampling variance
+effect_sizes <- coef(gl_multi, select=N, alphaIC=0.05)[seq(nrow(coef(gl_multi, select=N, alphaIC=0.05)),1,-1),]
+effect_sizes <- as.data.frame(effect_sizes[-grep("(Intercept)",row.names(effect_sizes)),])
+effect_sizes <- effect_sizes[order(row.names(effect_sizes), decreasing = F),]
+effect_sizes <- effect_sizes[order(effect_sizes$Importance, decreasing = T),]
+
+
+## Retrieving the AICcs and Akaike weights of the top N models. Note that the weights are not computed based on the top N models here, but based on the whole range of models evaluated by the glmulti() function. These weights will be computed again in the next step so that their sum is equal to 1.
+weights <- weightable(gl_multi)
+weights <- weights[c(1:N),]
+
+
+## Loop to build a table with several information on the top N models (AICc, delta AICc, adjusted R², conditional estimates of predictor's effect, and re-computed weights)
+var_names <- row.names(effect_sizes)
+
+info_model <- data.frame(AICc=NA, delta=NA, R2_adj=NA)
+for (i in 1:nrow(weights)) {
+  info_model[i,"AICc"] <- weights[i,"aicc"] # AICc
+  info_model[i,"delta"] <- weights[i,"aicc"]-min(weights[,"aicc"]) # delta AICc
+  info_model[i,"R2_adj"] <- summary(gl_multi@objects[[i]])$adj.r.squared # Adjusted r²
+  for (j in 1:length(var_names)){
+    info_model[i,var_names[j]] <- coef(gl_multi@objects[[i]])[var_names[j]] # estimates
+  }
+}
+
+Lik <- exp((-1/2)*info_model$delta)
+info_model$weight <- Lik/sum(Lik) # weights
+
+# Re-ordering columns
+info_model <- info_model[,c(2,ncol(info_model),3:(ncol(info_model)-1))]
+
+######
+### Plots
+########
+
+## Creating an artifical "y" variables to plot results
+effect_sizes$y <- rev(seq(0.5+w,(0.5+w)+(nrow(effect_sizes)-1)*(1+w),(1+w)))
+
+## Computing the upper and lower bounds of confidence intervals for model-averaged estimates
+effect_sizes$ub <- effect_sizes[,"Estimate"]+effect_sizes[,"+/- (alpha=0.05)"]
+effect_sizes$lb <- effect_sizes[,"Estimate"]-effect_sizes[,"+/- (alpha=0.05)"]
+
+## Defining specific vector colors to match the traits retained in the model selection & model averaging procedure
+colvec <- cols[c(2,2,2,2,1)]
+bgvec <- cols[c(4,2,2,4,4)]
+densvec <- c(20,-9,-9,20,20)
+anglevec <- rep(45,length(colvec))
+
+
+png("outputs/plots/Model_selection_Shoot_DW_RYT_WW.png", height=hgt, width=wdt, res=rsl)
+
+par(mfrow=c(1,2))
+par(mar=c(4,5,1,1), oma=c(5,2,1,2), lwd=3)
+
+# 1st plot: estimates and confidence intervales
+plot(y~Estimate, data=effect_sizes, xlim=c(-1,1), ylim=c(0,nrow(effect_sizes)+2), xlab="Standardized estimates", ylab="", axes=F, cex=1.3, type="n", cex.lab=1.3, cex.axis=1.3)
+abline(v=0, lty=2)
+arrows(effect_sizes$Estimate,effect_sizes$y,effect_sizes$ub,effect_sizes$y, code=2, angle=90, length=0.03, col=colvec, lwd=2.5)
+arrows(effect_sizes$Estimate,effect_sizes$y,effect_sizes$lb,effect_sizes$y, code=2, angle=90, length=0.03, col=colvec, lwd=2.5)
+points(effect_sizes$Estimate, effect_sizes$y, pch=21, bg=bgvec, col=colvec, cex=1.6, lwd=1.5)
+axis(2, las=1, labels=c("Root Surf.","Root Len.","Root Surf.","Root Len.","Tiller Nb"), at=effect_sizes$y, tick=F, cex.lab=1.3, cex.axis=1.5) 
+axis(1, at=seq(-1,1,by=0.5), cex.lab=1.3, cex.axis=1.3)
+
+## 2nb plot: variable importance
+par(mar=c(4,1,1,1))
+barplot(rev(effect_sizes[,"Importance"]),horiz=T, col=rev(colvec), bg=rev(bgvec), xlab="Relative variable importance", space=w, width=1, density = rev(densvec), angle=rev(anglevec), ylim=c(0,nrow(effect_sizes)+2), cex.lab=1.3, cex.axis=1.3)
+
+## plot legend
+
+xlegend = -0.7
+ylegend =-(nrow(effect_sizes)+2)*(1-0.7)
+
+legend(x=xlegend,y=ylegend,legend=c(" "," "), pch=c(19,NA),fill=c(NA,"black"), bty="n", col=c("black","black"), border=c(NA,"black"), xjust=0.2, x.intersp = c(2,0.2), pt.cex = 1.5, cex=1.5, xpd=NA)
+legend(xlegend+0.02,ylegend*1.15, legend="Mean", bty="n", xpd=NA, cex=1.4)
+
+legend(x=xlegend+0.4,y=ylegend,legend=c(" "," "), pch=c(21,NA),fill=c(NA,"black"), bty="n", col=c("black","black"), border=c(NA,NA), xjust=0.2, x.intersp = c(2,0.2), pt.cex = 1.5, cex=1.5, xpd=NA, density=c(0,20))
+legend(xlegend+0.02+0.4,ylegend*1.15, legend="Dist", bty="n", xpd=NA, cex=1.4)
+
+legend(x=xlegend+0.7,y=ylegend,legend=c(" "," "), fill=c(cols[1],cols[2]), bty="n", col=c("black","black"), border=c(NA,NA), xjust=0, cex=1.5, xpd=NA)
+legend(x=xlegend+0.7,y=ylegend*1.01,legend=c("Aboveground","Belowground"), fill=c(NA,NA), bty="n", col=c(NA,NA), border=c(NA,NA), xjust=0,cex=1.4, xpd=NA)
+
+dev.off()
+
+## RYT VARIABLES
+## Shoot DW - WS Treatment
+
+## Subsetting and scaling the data set 
+data_reg <- as.data.frame(scale(PROD[which(PROD$Treatment=="WS"),c(6,9:20)], center=T, scale = T))
+
+## Running model selection from the full_model with all traits
+full_model <- lm(Shoot_DW_RYT ~ ., data=data_reg)
+gl_multi <- glmulti(full_model, level = 1, crit = aicc, method="l", report = T)
+
+## Retrieving model-averaged estimates based on the top N models and their unconditional sampling variance
+effect_sizes <- coef(gl_multi, select=N, alphaIC=0.05)[seq(nrow(coef(gl_multi, select=N, alphaIC=0.05)),1,-1),]
+effect_sizes <- as.data.frame(effect_sizes[-grep("(Intercept)",row.names(effect_sizes)),])
+effect_sizes <- effect_sizes[order(row.names(effect_sizes), decreasing = F),]
+effect_sizes <- effect_sizes[order(effect_sizes$Importance, decreasing = T),]
+
+
+## Retrieving the AICcs and Akaike weights of the top N models. Note that the weights are not computed based on the top N models here, but based on the whole range of models evaluated by the glmulti() function. These weights will be computed again in the next step so that their sum is equal to 1.
+weights <- weightable(gl_multi)
+weights <- weights[c(1:N),]
+
+
+## Loop to build a table with several information on the top N models (AICc, delta AICc, adjusted R², conditional estimates of predictor's effect, and re-computed weights)
+var_names <- row.names(effect_sizes)
+
+info_model <- data.frame(AICc=NA, delta=NA, R2_adj=NA)
+for (i in 1:nrow(weights)) {
+  info_model[i,"AICc"] <- weights[i,"aicc"] # AICc
+  info_model[i,"delta"] <- weights[i,"aicc"]-min(weights[,"aicc"]) # delta AICc
+  info_model[i,"R2_adj"] <- summary(gl_multi@objects[[i]])$adj.r.squared # Adjusted r²
+  for (j in 1:length(var_names)){
+    info_model[i,var_names[j]] <- coef(gl_multi@objects[[i]])[var_names[j]] # estimates
+  }
+}
+
+Lik <- exp((-1/2)*info_model$delta)
+info_model$weight <- Lik/sum(Lik) # weights
+
+# Re-ordering columns
+info_model <- info_model[,c(2,ncol(info_model),3:(ncol(info_model)-1))]
+
+######
+### Plots
+########
+
+## Creating an artifical "y" variables to plot results
+effect_sizes$y <- rev(seq(0.5+w,(0.5+w)+(nrow(effect_sizes)-1)*(1+w),(1+w)))
+
+## Computing the upper and lower bounds of confidence intervals for model-averaged estimates
+effect_sizes$ub <- effect_sizes[,"Estimate"]+effect_sizes[,"+/- (alpha=0.05)"]
+effect_sizes$lb <- effect_sizes[,"Estimate"]-effect_sizes[,"+/- (alpha=0.05)"]
+
+## Defining specific vector colors to match the traits retained in the model selection & model averaging procedure
+colvec <- cols[c(2,2,1,1,1,2,2)]
+bgvec <- cols[c(2,2,1,4,4,4,4)]
+densvec <- c(-9,-9,-9,20,20,20,20)
+anglevec <- rep(45,length(colvec))
+
+
+png("outputs/plots/Model_selection_Shoot_DW_RYT_WS.png", height=hgt, width=wdt, res=rsl)
+
+par(mfrow=c(1,2))
+par(mar=c(4,5,1,1), oma=c(5,2,1,2), lwd=3)
+
+# 1st plot: estimates and confidence intervales
+plot(y~Estimate, data=effect_sizes, xlim=c(-1,1), ylim=c(0,nrow(effect_sizes)+2), xlab="Standardized estimates", ylab="", axes=F, cex=1.3, type="n", cex.lab=1.3, cex.axis=1.3)
+abline(v=0, lty=2)
+arrows(effect_sizes$Estimate,effect_sizes$y,effect_sizes$ub,effect_sizes$y, code=2, angle=90, length=0.03, col=colvec, lwd=2.5)
+arrows(effect_sizes$Estimate,effect_sizes$y,effect_sizes$lb,effect_sizes$y, code=2, angle=90, length=0.03, col=colvec, lwd=2.5)
+points(effect_sizes$Estimate, effect_sizes$y, pch=21, bg=bgvec, col=colvec, cex=1.6, lwd=1.5)
+axis(2, las=1, labels=c("Root Surf.","Root Len.","Leaf Nb","Leaf Nb","Tiller Nb","Root Len.","Root Surf."), at=effect_sizes$y, tick=F, cex.lab=1.3, cex.axis=1.5) 
+axis(1, at=seq(-1,1,by=0.5), cex.lab=1.3, cex.axis=1.3)
+
+## 2nb plot: variable importance
+par(mar=c(4,1,1,1))
+barplot(rev(effect_sizes[,"Importance"]),horiz=T, col=rev(colvec), bg=rev(bgvec), xlab="Relative variable importance", space=w, width=1, density = rev(densvec), angle=rev(anglevec), ylim=c(0,nrow(effect_sizes)+2), cex.lab=1.3, cex.axis=1.3)
+
+## plot legend
+
+xlegend = -0.7
+ylegend =-(nrow(effect_sizes)+2)*(1-0.7)
+
+legend(x=xlegend,y=ylegend,legend=c(" "," "), pch=c(19,NA),fill=c(NA,"black"), bty="n", col=c("black","black"), border=c(NA,"black"), xjust=0.2, x.intersp = c(2,0.2), pt.cex = 1.5, cex=1.5, xpd=NA)
+legend(xlegend+0.02,ylegend*1.15, legend="Mean", bty="n", xpd=NA, cex=1.4)
+
+legend(x=xlegend+0.4,y=ylegend,legend=c(" "," "), pch=c(21,NA),fill=c(NA,"black"), bty="n", col=c("black","black"), border=c(NA,NA), xjust=0.2, x.intersp = c(2,0.2), pt.cex = 1.5, cex=1.5, xpd=NA, density=c(0,20))
+legend(xlegend+0.02+0.4,ylegend*1.15, legend="Dist", bty="n", xpd=NA, cex=1.4)
+
+legend(x=xlegend+0.7,y=ylegend,legend=c(" "," "), fill=c(cols[1],cols[2]), bty="n", col=c("black","black"), border=c(NA,NA), xjust=0, cex=1.5, xpd=NA)
+legend(x=xlegend+0.7,y=ylegend*1.01,legend=c("Aboveground","Belowground"), fill=c(NA,NA), bty="n", col=c(NA,NA), border=c(NA,NA), xjust=0,cex=1.4, xpd=NA)
+
+dev.off()
+
+
+## RYT VARIABLES
+## Root DW - WW Treatment
+
+## Subsetting and scaling the data set 
+data_reg <- as.data.frame(scale(PROD[which(PROD$Treatment=="WW"),c(7,9:20)], center=T, scale = T))
+
+## Running model selection from the full_model with all traits
+full_model <- lm(Root_DW_RYT ~ ., data=data_reg)
+gl_multi <- glmulti(full_model, level = 1, crit = aicc, method="l", report = T)
+
+## Retrieving model-averaged estimates based on the top N models and their unconditional sampling variance
+effect_sizes <- coef(gl_multi, select=N, alphaIC=0.05)[seq(nrow(coef(gl_multi, select=N, alphaIC=0.05)),1,-1),]
+effect_sizes <- as.data.frame(effect_sizes[-grep("(Intercept)",row.names(effect_sizes)),])
+effect_sizes <- effect_sizes[order(row.names(effect_sizes), decreasing = F),]
+effect_sizes <- effect_sizes[order(effect_sizes$Importance, decreasing = T),]
+
+
+## Retrieving the AICcs and Akaike weights of the top N models. Note that the weights are not computed based on the top N models here, but based on the whole range of models evaluated by the glmulti() function. These weights will be computed again in the next step so that their sum is equal to 1.
+weights <- weightable(gl_multi)
+weights <- weights[c(1:N),]
+
+
+## Loop to build a table with several information on the top N models (AICc, delta AICc, adjusted R², conditional estimates of predictor's effect, and re-computed weights)
+var_names <- row.names(effect_sizes)
+
+info_model <- data.frame(AICc=NA, delta=NA, R2_adj=NA)
+for (i in 1:nrow(weights)) {
+  info_model[i,"AICc"] <- weights[i,"aicc"] # AICc
+  info_model[i,"delta"] <- weights[i,"aicc"]-min(weights[,"aicc"]) # delta AICc
+  info_model[i,"R2_adj"] <- summary(gl_multi@objects[[i]])$adj.r.squared # Adjusted r²
+  for (j in 1:length(var_names)){
+    info_model[i,var_names[j]] <- coef(gl_multi@objects[[i]])[var_names[j]] # estimates
+  }
+}
+
+Lik <- exp((-1/2)*info_model$delta)
+info_model$weight <- Lik/sum(Lik) # weights
+
+# Re-ordering columns
+info_model <- info_model[,c(2,ncol(info_model),3:(ncol(info_model)-1))]
+
+######
+### Plots
+########
+
+## Creating an artifical "y" variables to plot results
+effect_sizes$y <- rev(seq(0.5+w,(0.5+w)+(nrow(effect_sizes)-1)*(1+w),(1+w)))
+
+## Computing the upper and lower bounds of confidence intervals for model-averaged estimates
+effect_sizes$ub <- effect_sizes[,"Estimate"]+effect_sizes[,"+/- (alpha=0.05)"]
+effect_sizes$lb <- effect_sizes[,"Estimate"]-effect_sizes[,"+/- (alpha=0.05)"]
+
+## Defining specific vector colors to match the traits retained in the model selection & model averaging procedure
+colvec <- cols[c(1,1,2,2,2,2,1)]
+bgvec <- cols[c(1,4,2,4,2,4,1)]
+densvec <- c(-9,20,-9,20,-9,20,-9)
+anglevec <- rep(45,length(colvec))
+
+
+png("outputs/plots/Model_selection_Root_DW_RYT_WW.png", height=hgt, width=wdt, res=rsl)
+
+par(mfrow=c(1,2))
+par(mar=c(4,5,1,1), oma=c(5,2,1,2), lwd=3)
+
+# 1st plot: estimates and confidence intervales
+plot(y~Estimate, data=effect_sizes, xlim=c(-1,1), ylim=c(0,nrow(effect_sizes)+2), xlab="Standardized estimates", ylab="", axes=F, cex=1.3, type="n", cex.lab=1.3, cex.axis=1.3)
+abline(v=0, lty=2)
+arrows(effect_sizes$Estimate,effect_sizes$y,effect_sizes$ub,effect_sizes$y, code=2, angle=90, length=0.03, col=colvec, lwd=2.5)
+arrows(effect_sizes$Estimate,effect_sizes$y,effect_sizes$lb,effect_sizes$y, code=2, angle=90, length=0.03, col=colvec, lwd=2.5)
+points(effect_sizes$Estimate, effect_sizes$y, pch=21, bg=bgvec, col=colvec, cex=1.6, lwd=1.5)
+axis(2, las=1, labels=c("Leaf Nb", "Leaf N", "Root Len.","Root Surf.","Root Surf.","Root Len.", "Leaf N"), at=effect_sizes$y, tick=F, cex.lab=1.3, cex.axis=1.5) 
+axis(1, at=seq(-1,1,by=0.5), cex.lab=1.3, cex.axis=1.3)
+
+## 2nb plot: variable importance
+par(mar=c(4,1,1,1))
+barplot(rev(effect_sizes[,"Importance"]),horiz=T, col=rev(colvec), bg=rev(bgvec), xlab="Relative variable importance", space=w, width=1, density = rev(densvec), angle=rev(anglevec), ylim=c(0,nrow(effect_sizes)+2), cex.lab=1.3, cex.axis=1.3)
+
+## plot legend
+
+xlegend = -0.7
+ylegend =-(nrow(effect_sizes)+2)*(1-0.7)
+
+legend(x=xlegend,y=ylegend,legend=c(" "," "), pch=c(19,NA),fill=c(NA,"black"), bty="n", col=c("black","black"), border=c(NA,"black"), xjust=0.2, x.intersp = c(2,0.2), pt.cex = 1.5, cex=1.5, xpd=NA)
+legend(xlegend+0.02,ylegend*1.15, legend="Mean", bty="n", xpd=NA, cex=1.4)
+
+legend(x=xlegend+0.4,y=ylegend,legend=c(" "," "), pch=c(21,NA),fill=c(NA,"black"), bty="n", col=c("black","black"), border=c(NA,NA), xjust=0.2, x.intersp = c(2,0.2), pt.cex = 1.5, cex=1.5, xpd=NA, density=c(0,20))
+legend(xlegend+0.02+0.4,ylegend*1.15, legend="Dist", bty="n", xpd=NA, cex=1.4)
+
+legend(x=xlegend+0.7,y=ylegend,legend=c(" "," "), fill=c(cols[1],cols[2]), bty="n", col=c("black","black"), border=c(NA,NA), xjust=0, cex=1.5, xpd=NA)
+legend(x=xlegend+0.7,y=ylegend*1.01,legend=c("Aboveground","Belowground"), fill=c(NA,NA), bty="n", col=c(NA,NA), border=c(NA,NA), xjust=0,cex=1.4, xpd=NA)
+
+dev.off()
+
+
+## RYT VARIABLES
+## Root DW - WS Treatment
+
+## Subsetting and scaling the data set 
+data_reg <- as.data.frame(scale(PROD[which(PROD$Treatment=="WS"),c(7,9:20)], center=T, scale = T))
+
+## Running model selection from the full_model with all traits
+full_model <- lm(Root_DW_RYT ~ ., data=data_reg)
+gl_multi <- glmulti(full_model, level = 1, crit = aicc, method="l", report = T)
+
+## Retrieving model-averaged estimates based on the top N models and their unconditional sampling variance
+effect_sizes <- coef(gl_multi, select=N, alphaIC=0.05)[seq(nrow(coef(gl_multi, select=N, alphaIC=0.05)),1,-1),]
+effect_sizes <- as.data.frame(effect_sizes[-grep("(Intercept)",row.names(effect_sizes)),])
+effect_sizes <- effect_sizes[order(row.names(effect_sizes), decreasing = F),]
+effect_sizes <- effect_sizes[order(effect_sizes$Importance, decreasing = T),]
+
+
+## Retrieving the AICcs and Akaike weights of the top N models. Note that the weights are not computed based on the top N models here, but based on the whole range of models evaluated by the glmulti() function. These weights will be computed again in the next step so that their sum is equal to 1.
+weights <- weightable(gl_multi)
+weights <- weights[c(1:N),]
+
+
+## Loop to build a table with several information on the top N models (AICc, delta AICc, adjusted R², conditional estimates of predictor's effect, and re-computed weights)
+var_names <- row.names(effect_sizes)
+
+info_model <- data.frame(AICc=NA, delta=NA, R2_adj=NA)
+for (i in 1:nrow(weights)) {
+  info_model[i,"AICc"] <- weights[i,"aicc"] # AICc
+  info_model[i,"delta"] <- weights[i,"aicc"]-min(weights[,"aicc"]) # delta AICc
+  info_model[i,"R2_adj"] <- summary(gl_multi@objects[[i]])$adj.r.squared # Adjusted r²
+  for (j in 1:length(var_names)){
+    info_model[i,var_names[j]] <- coef(gl_multi@objects[[i]])[var_names[j]] # estimates
+  }
+}
+
+Lik <- exp((-1/2)*info_model$delta)
+info_model$weight <- Lik/sum(Lik) # weights
+
+# Re-ordering columns
+info_model <- info_model[,c(2,ncol(info_model),3:(ncol(info_model)-1))]
+
+######
+### Plots
+########
+
+## Creating an artifical "y" variables to plot results
+effect_sizes$y <- rev(seq(0.5+w,(0.5+w)+(nrow(effect_sizes)-1)*(1+w),(1+w)))
+
+## Computing the upper and lower bounds of confidence intervals for model-averaged estimates
+effect_sizes$ub <- effect_sizes[,"Estimate"]+effect_sizes[,"+/- (alpha=0.05)"]
+effect_sizes$lb <- effect_sizes[,"Estimate"]-effect_sizes[,"+/- (alpha=0.05)"]
+
+## Defining specific vector colors to match the traits retained in the model selection & model averaging procedure
+colvec <- cols[c(2,1,1,2,2,2,2,1,1,1)]
+bgvec <- cols[c(2,1,4,4,4,2,4,1,4,1)]
+densvec <- c(-9,-9,20,20,20,-9,20,-9,20,-9)
+anglevec <- rep(45,length(colvec))
+
+
+png("outputs/plots/Model_selection_Root_DW_RYT_WS.png", height=hgt, width=wdt, res=rsl)
+
+par(mfrow=c(1,2))
+par(mar=c(4,5,1,1), oma=c(5,2,1,2), lwd=3)
+
+# 1st plot: estimates and confidence intervales
+plot(y~Estimate, data=effect_sizes, xlim=c(-1,1), ylim=c(0,nrow(effect_sizes)+2), xlab="Standardized estimates", ylab="", axes=F, cex=1.3, type="n", cex.lab=1.3, cex.axis=1.3)
+abline(v=0, lty=2)
+arrows(effect_sizes$Estimate,effect_sizes$y,effect_sizes$ub,effect_sizes$y, code=2, angle=90, length=0.03, col=colvec, lwd=2.5)
+arrows(effect_sizes$Estimate,effect_sizes$y,effect_sizes$lb,effect_sizes$y, code=2, angle=90, length=0.03, col=colvec, lwd=2.5)
+points(effect_sizes$Estimate, effect_sizes$y, pch=21, bg=bgvec, col=colvec, cex=1.6, lwd=1.5)
+axis(2, las=1, labels=c("Root Surf.", "Tiller Nb", "Leaf Nb", "Root Len.","Root Surf.","Root Len.","Root Prof.","Leaf Nb","Leaf N","Leaf N"), at=effect_sizes$y, tick=F, cex.lab=1.3, cex.axis=1.5) 
+axis(1, at=seq(-1,1,by=0.5), cex.lab=1.3, cex.axis=1.3)
+
+## 2nb plot: variable importance
+par(mar=c(4,1,1,1))
+barplot(rev(effect_sizes[,"Importance"]),horiz=T, col=rev(colvec), bg=rev(bgvec), xlab="Relative variable importance", space=w, width=1, density = rev(densvec), angle=rev(anglevec), ylim=c(0,nrow(effect_sizes)+2), cex.lab=1.3, cex.axis=1.3)
+
+## plot legend
+
+xlegend = -0.7
+ylegend =-(nrow(effect_sizes)+2)*(1-0.7)
+
+legend(x=xlegend,y=ylegend,legend=c(" "," "), pch=c(19,NA),fill=c(NA,"black"), bty="n", col=c("black","black"), border=c(NA,"black"), xjust=0.2, x.intersp = c(2,0.2), pt.cex = 1.5, cex=1.5, xpd=NA)
+legend(xlegend+0.02,ylegend*1.15, legend="Mean", bty="n", xpd=NA, cex=1.4)
+
+legend(x=xlegend+0.4,y=ylegend,legend=c(" "," "), pch=c(21,NA),fill=c(NA,"black"), bty="n", col=c("black","black"), border=c(NA,NA), xjust=0.2, x.intersp = c(2,0.2), pt.cex = 1.5, cex=1.5, xpd=NA, density=c(0,20))
+legend(xlegend+0.02+0.4,ylegend*1.15, legend="Dist", bty="n", xpd=NA, cex=1.4)
+
+legend(x=xlegend+0.7,y=ylegend,legend=c(" "," "), fill=c(cols[1],cols[2]), bty="n", col=c("black","black"), border=c(NA,NA), xjust=0, cex=1.5, xpd=NA)
+legend(x=xlegend+0.7,y=ylegend*1.01,legend=c("Aboveground","Belowground"), fill=c(NA,NA), bty="n", col=c(NA,NA), border=c(NA,NA), xjust=0,cex=1.4, xpd=NA)
+
+dev.off()
+
+
+## RYT VARIABLES
+## Total DW - WW Treatment
+
+## Subsetting and scaling the data set 
+data_reg <- as.data.frame(scale(PROD[which(PROD$Treatment=="WW"),c(8,9:20)], center=T, scale = T))
+
+## Running model selection from the full_model with all traits
+full_model <- lm(Total_DW_RYT ~ ., data=data_reg)
+gl_multi <- glmulti(full_model, level = 1, crit = aicc, method="l", report = T)
+
+## Retrieving model-averaged estimates based on the top N models and their unconditional sampling variance
+effect_sizes <- coef(gl_multi, select=N, alphaIC=0.05)[seq(nrow(coef(gl_multi, select=N, alphaIC=0.05)),1,-1),]
+effect_sizes <- as.data.frame(effect_sizes[-grep("(Intercept)",row.names(effect_sizes)),])
+effect_sizes <- effect_sizes[order(row.names(effect_sizes), decreasing = F),]
+effect_sizes <- effect_sizes[order(effect_sizes$Importance, decreasing = T),]
+
+
+## Retrieving the AICcs and Akaike weights of the top N models. Note that the weights are not computed based on the top N models here, but based on the whole range of models evaluated by the glmulti() function. These weights will be computed again in the next step so that their sum is equal to 1.
+weights <- weightable(gl_multi)
+weights <- weights[c(1:N),]
+
+
+## Loop to build a table with several information on the top N models (AICc, delta AICc, adjusted R², conditional estimates of predictor's effect, and re-computed weights)
+var_names <- row.names(effect_sizes)
+
+info_model <- data.frame(AICc=NA, delta=NA, R2_adj=NA)
+for (i in 1:nrow(weights)) {
+  info_model[i,"AICc"] <- weights[i,"aicc"] # AICc
+  info_model[i,"delta"] <- weights[i,"aicc"]-min(weights[,"aicc"]) # delta AICc
+  info_model[i,"R2_adj"] <- summary(gl_multi@objects[[i]])$adj.r.squared # Adjusted r²
+  for (j in 1:length(var_names)){
+    info_model[i,var_names[j]] <- coef(gl_multi@objects[[i]])[var_names[j]] # estimates
+  }
+}
+
+Lik <- exp((-1/2)*info_model$delta)
+info_model$weight <- Lik/sum(Lik) # weights
+
+# Re-ordering columns
+info_model <- info_model[,c(2,ncol(info_model),3:(ncol(info_model)-1))]
+
+######
+### Plots
+########
+
+## Creating an artifical "y" variables to plot results
+effect_sizes$y <- rev(seq(0.5+w,(0.5+w)+(nrow(effect_sizes)-1)*(1+w),(1+w)))
+
+## Computing the upper and lower bounds of confidence intervals for model-averaged estimates
+effect_sizes$ub <- effect_sizes[,"Estimate"]+effect_sizes[,"+/- (alpha=0.05)"]
+effect_sizes$lb <- effect_sizes[,"Estimate"]-effect_sizes[,"+/- (alpha=0.05)"]
+
+## Defining specific vector colors to match the traits retained in the model selection & model averaging procedure
+colvec <- cols[c(2,2,2,1,2,1,1)]
+bgvec <- cols[c(4,2,2,1,4,4,4)]
+densvec <- c(20,-9,-9,-9,20,20,20)
+anglevec <- rep(45,length(colvec))
+
+
+png("outputs/plots/Model_selection_Total_DW_RYT_WW.png", height=hgt, width=wdt, res=rsl)
+
+par(mfrow=c(1,2))
+par(mar=c(4,5,1,1), oma=c(5,2,1,2), lwd=3)
+
+# 1st plot: estimates and confidence intervales
+plot(y~Estimate, data=effect_sizes, xlim=c(-2,2), ylim=c(0,nrow(effect_sizes)+2), xlab="Standardized estimates", ylab="", axes=F, cex=1.3, type="n", cex.lab=1.3, cex.axis=1.3)
+abline(v=0, lty=2)
+arrows(effect_sizes$Estimate,effect_sizes$y,effect_sizes$ub,effect_sizes$y, code=2, angle=90, length=0.03, col=colvec, lwd=2.5)
+arrows(effect_sizes$Estimate,effect_sizes$y,effect_sizes$lb,effect_sizes$y, code=2, angle=90, length=0.03, col=colvec, lwd=2.5)
+points(effect_sizes$Estimate, effect_sizes$y, pch=21, bg=bgvec, col=colvec, cex=1.6, lwd=1.5)
+axis(2, las=1, labels=c("Root Surf.", "Root Len.","Root Surf.", "Leaf Nb","Root Len.","Leaf N", "Tiller Nb"), at=effect_sizes$y, tick=F, cex.lab=1.3, cex.axis=1.5) 
+axis(1, at=seq(-2,2,by=0.5), cex.lab=1.3, cex.axis=1.3)
+
+## 2nb plot: variable importance
+par(mar=c(4,1,1,1))
+barplot(rev(effect_sizes[,"Importance"]),horiz=T, col=rev(colvec), bg=rev(bgvec), xlab="Relative variable importance", space=w, width=1, density = rev(densvec), angle=rev(anglevec), ylim=c(0,nrow(effect_sizes)+2), cex.lab=1.3, cex.axis=1.3)
+
+## plot legend
+
+xlegend = -0.7
+ylegend =-(nrow(effect_sizes)+2)*(1-0.7)
+
+legend(x=xlegend,y=ylegend,legend=c(" "," "), pch=c(19,NA),fill=c(NA,"black"), bty="n", col=c("black","black"), border=c(NA,"black"), xjust=0.2, x.intersp = c(2,0.2), pt.cex = 1.5, cex=1.5, xpd=NA)
+legend(xlegend+0.02,ylegend*1.15, legend="Mean", bty="n", xpd=NA, cex=1.4)
+
+legend(x=xlegend+0.4,y=ylegend,legend=c(" "," "), pch=c(21,NA),fill=c(NA,"black"), bty="n", col=c("black","black"), border=c(NA,NA), xjust=0.2, x.intersp = c(2,0.2), pt.cex = 1.5, cex=1.5, xpd=NA, density=c(0,20))
+legend(xlegend+0.02+0.4,ylegend*1.15, legend="Dist", bty="n", xpd=NA, cex=1.4)
+
+legend(x=xlegend+0.7,y=ylegend,legend=c(" "," "), fill=c(cols[1],cols[2]), bty="n", col=c("black","black"), border=c(NA,NA), xjust=0, cex=1.5, xpd=NA)
+legend(x=xlegend+0.7,y=ylegend*1.01,legend=c("Aboveground","Belowground"), fill=c(NA,NA), bty="n", col=c(NA,NA), border=c(NA,NA), xjust=0,cex=1.4, xpd=NA)
+
+
+dev.off()
+
+
+## RYT VARIABLES
+## Total DW - WS Treatment
+
+## Subsetting and scaling the data set 
+data_reg <- as.data.frame(scale(PROD[which(PROD$Treatment=="WS"),c(8,9:20)], center=T, scale = T))
+
+## Running model selection from the full_model with all traits
+full_model <- lm(Total_DW_RYT ~ ., data=data_reg)
+gl_multi <- glmulti(full_model, level = 1, crit = aicc, method="l", report = T)
+
+## Retrieving model-averaged estimates based on the top N models and their unconditional sampling variance
+effect_sizes <- coef(gl_multi, select=N, alphaIC=0.05)[seq(nrow(coef(gl_multi, select=N, alphaIC=0.05)),1,-1),]
+effect_sizes <- as.data.frame(effect_sizes[-grep("(Intercept)",row.names(effect_sizes)),])
+effect_sizes <- effect_sizes[order(row.names(effect_sizes), decreasing = F),]
+effect_sizes <- effect_sizes[order(effect_sizes$Importance, decreasing = T),]
+
+
+## Retrieving the AICcs and Akaike weights of the top N models. Note that the weights are not computed based on the top N models here, but based on the whole range of models evaluated by the glmulti() function. These weights will be computed again in the next step so that their sum is equal to 1.
+weights <- weightable(gl_multi)
+weights <- weights[c(1:N),]
+
+
+## Loop to build a table with several information on the top N models (AICc, delta AICc, adjusted R², conditional estimates of predictor's effect, and re-computed weights)
+var_names <- row.names(effect_sizes)
+
+info_model <- data.frame(AICc=NA, delta=NA, R2_adj=NA)
+for (i in 1:nrow(weights)) {
+  info_model[i,"AICc"] <- weights[i,"aicc"] # AICc
+  info_model[i,"delta"] <- weights[i,"aicc"]-min(weights[,"aicc"]) # delta AICc
+  info_model[i,"R2_adj"] <- summary(gl_multi@objects[[i]])$adj.r.squared # Adjusted r²
+  for (j in 1:length(var_names)){
+    info_model[i,var_names[j]] <- coef(gl_multi@objects[[i]])[var_names[j]] # estimates
+  }
+}
+
+Lik <- exp((-1/2)*info_model$delta)
+info_model$weight <- Lik/sum(Lik) # weights
+
+# Re-ordering columns
+info_model <- info_model[,c(2,ncol(info_model),3:(ncol(info_model)-1))]
+
+######
+### Plots
+########
+
+## Creating an artifical "y" variables to plot results
+effect_sizes$y <- rev(seq(0.5+w,(0.5+w)+(nrow(effect_sizes)-1)*(1+w),(1+w)))
+
+## Computing the upper and lower bounds of confidence intervals for model-averaged estimates
+effect_sizes$ub <- effect_sizes[,"Estimate"]+effect_sizes[,"+/- (alpha=0.05)"]
+effect_sizes$lb <- effect_sizes[,"Estimate"]-effect_sizes[,"+/- (alpha=0.05)"]
+
+## Defining specific vector colors to match the traits retained in the model selection & model averaging procedure
+colvec <- cols[c(2,2,1,1,1)]
+bgvec <- cols[c(2,2,4,1,1)]
+densvec <- c(-9,-9,20,-9,-9)
+anglevec <- rep(45,length(colvec))
+
+
+png("outputs/plots/Model_selection_Total_DW_RYT_WS.png", height=hgt, width=wdt, res=rsl)
+
+par(mfrow=c(1,2))
+par(mar=c(4,5,1,1), oma=c(5,2,1,2), lwd=3)
+
+# 1st plot: estimates and confidence intervales
+plot(y~Estimate, data=effect_sizes, xlim=c(-2,2), ylim=c(0,nrow(effect_sizes)+2), xlab="Standardized estimates", ylab="", axes=F, cex=1.3, type="n", cex.lab=1.3, cex.axis=1.3)
+abline(v=0, lty=2)
+arrows(effect_sizes$Estimate,effect_sizes$y,effect_sizes$ub,effect_sizes$y, code=2, angle=90, length=0.03, col=colvec, lwd=2.5)
+arrows(effect_sizes$Estimate,effect_sizes$y,effect_sizes$lb,effect_sizes$y, code=2, angle=90, length=0.03, col=colvec, lwd=2.5)
+points(effect_sizes$Estimate, effect_sizes$y, pch=21, bg=bgvec, col=colvec, cex=1.6, lwd=1.5)
+axis(2, las=1, labels=c("Root Surf.", "Root Len.", "Leaf Nb","Leaf Nb","Tiller Nb"), at=effect_sizes$y, tick=F, cex.lab=1.3, cex.axis=1.5) 
+axis(1, at=seq(-2,2,by=0.5), cex.lab=1.3, cex.axis=1.3)
+
+## 2nb plot: variable importance
+par(mar=c(4,1,1,1))
+barplot(rev(effect_sizes[,"Importance"]),horiz=T, col=rev(colvec), bg=rev(bgvec), xlab="Relative variable importance", space=w, width=1, density = rev(densvec), angle=rev(anglevec), ylim=c(0,nrow(effect_sizes)+2), cex.lab=1.3, cex.axis=1.3)
+
+## plot legend
+
+xlegend = -0.7
+ylegend =-(nrow(effect_sizes)+2)*(1-0.7)
+
+legend(x=xlegend,y=ylegend,legend=c(" "," "), pch=c(19,NA),fill=c(NA,"black"), bty="n", col=c("black","black"), border=c(NA,"black"), xjust=0.2, x.intersp = c(2,0.2), pt.cex = 1.5, cex=1.5, xpd=NA)
+legend(xlegend+0.02,ylegend*1.15, legend="Mean", bty="n", xpd=NA, cex=1.4)
+
+legend(x=xlegend+0.4,y=ylegend,legend=c(" "," "), pch=c(21,NA),fill=c(NA,"black"), bty="n", col=c("black","black"), border=c(NA,NA), xjust=0.2, x.intersp = c(2,0.2), pt.cex = 1.5, cex=1.5, xpd=NA, density=c(0,20))
+legend(xlegend+0.02+0.4,ylegend*1.15, legend="Dist", bty="n", xpd=NA, cex=1.4)
+
+legend(x=xlegend+0.7,y=ylegend,legend=c(" "," "), fill=c(cols[1],cols[2]), bty="n", col=c("black","black"), border=c(NA,NA), xjust=0, cex=1.5, xpd=NA)
+legend(x=xlegend+0.7,y=ylegend*1.01,legend=c("Aboveground","Belowground"), fill=c(NA,NA), bty="n", col=c(NA,NA), border=c(NA,NA), xjust=0,cex=1.4, xpd=NA)
+
+dev.off()
+
+########################
+### FOLLOW UP ANALYSIS ON RYT-ROOT TRAITS RELATIONSHIPS 
+########################
+
+## Checking the relationship btw avg root surface and RYT on Total biomass RYT
+PRODWW <- PROD[which(PROD$Treatment=="WW"),]
+PRODWS <- PROD[which(PROD$Treatment=="WS"),]
+
+png("outputs/plots/Root_surf_vs_RYT.png", height =700, width=1500, res=210)
+par(mfrow=c(1,2), mar=c(4,4,2,2))
+plot(Total_DW_RYT~SURF_Surface_Projetee_mm2_avg, data=PRODWW, las=1, pch=16, col="dodgerblue3", ylab="Biomass RYT", xlab="Average Projected Root Area (mm²)")
+modWW <- lm(Total_DW_RYT~SURF_Surface_Projetee_mm2_avg, data=PRODWW)
+abline(modWW, lty=2, col="dodgerblue3")
+anova(modWW)
+summary(modWW)
+legend("topright", bty= "n", legend=expression("R"^2~"= 0.05 n.s."), col="dodgerblue3")
+
+plot(Total_DW_RYT~SURF_Surface_Projetee_mm2_avg, data=PRODWS,las=1, pch=16, col="red3", ylab="Biomass RYT", xlab="Average Projected Root Area (mm²)")
+modWS <- lm(Total_DW_RYT~SURF_Surface_Projetee_mm2_avg, data=PRODWS)
+abline(modWS, lty=2, col="red3")
+anova(modWS)
+summary(modWS)
+legend("topright", bty= "n", legend=expression("R"^2~"= 0.41***"), col="red3")
+dev.off()
+
+
+ggplot(PROD, aes(x=SURF_Surface_Projetee_mm2_avg, y=Total_DW_RYT, color=Treatment))+
+  geom_point()+
+  geom_smooth(method = "lm", fill = NA)+
+  stat_cor(method = "pearson")
+
+### Checking the relationship btw avg root surface and RYT on Total biomass RYT, using avg root surface from mixture rhyzotrons
+
+##1. computing avg root surface in mixture rhyzotrons
+root_traits_mix <- all_root_trait_d3[which(all_root_trait_d3$Assoc=="Mixt"),]
+for (i in c(1:nrow(root_traits_mix))) {
+  root_traits_mix[i,"Pair_unoriented"] <- paste(sort(c(root_traits_mix[i,"Focal"],root_traits_mix[i,"Neighbour"])), collapse = ";")
+}
+
+root_traits_mix$Pair_unoriented <- as.factor(root_traits_mix$Pair_unoriented)
+blup_SURF_mix <- data.frame(Pair_unoriented=levels(root_traits_mix$Pair_unoriented), Treatment=rep(c("WW","WS"), each=54))
+
+mod <- lmer(SURF_Surface_Projetee_mm2 ~ Treatment + Treatment/Repetition +  (1|Pair_unoriented), data=root_traits_mix)
+
+blup_SURF_mix[which(blup_SURF_mix$Treatment=="WW"),"SURF_Surface_Projetee_mm2"] <- fixef(mod)[1]+ranef(mod)$Pair_unoriented[1]
+blup_SURF_mix[which(blup_SURF_mix$Treatment=="WS"),"SURF_Surface_Projetee_mm2"] <- fixef(mod)[1]+ranef(mod)$Pair_unoriented[1]+fixef(mod)[2]
+
+##2. merging root surface in mixture rhyzotrons with the global data set
+PROD <- merge(PROD, blup_SURF_mix, by=c("Pair_unoriented","Treatment"))
+PROD$SURF_Surface_Projetee_mm2_diff <- (PROD$SURF_Surface_Projetee_mm2-PROD$SURF_Surface_Projetee_mm2_avg)/PROD$SURF_Surface_Projetee_mm2_avg
+
+
+ggplot(PROD, aes(x=SURF_Surface_Projetee_mm2, y=Total_DW_RYT, color=Treatment))+
+  geom_point()+
+  geom_smooth(method = "lm", fill = NA)+
+  stat_cor(method = "pearson")
+# geom_abline(slope=1,
+#             intercept=0,
+#             color="black",
+#             size=1)
+
+
+## Checking the relationship btw root depth differences and Total biomass RYT
+png("outputs/plots/Root_depth_vs_RYT.png", height =700, width=1500, res=210)
+par(mfrow=c(1,2), mar=c(4,4,2,2))
+plot(Total_DW_RYT~BE_BoitEng_Hauteur_mm_dist, data=PRODWW, las=1, pch=16, col="dodgerblue3", ylab="Biomass RYT", xlab="Absolute Difference in Root Depth (mm)")
+modWW <- lm(Total_DW_RYT~BE_BoitEng_Hauteur_mm_dist, data=PRODWW)
+abline(modWW, lty=2, col="dodgerblue3")
+anova(modWW)
+summary(modWW)
+legend("topright", bty= "n", legend=expression("R"^2~"= 0.00 n.s."), col="dodgerblue3")
+
+plot(Total_DW_RYT~BE_BoitEng_Hauteur_mm_dist, data=PRODWS,las=1, pch=16, col="red3", ylab="Biomass RYT", xlab="Absolute Difference in Root Depth (mm)")
+modWS <- lm(Total_DW_RYT~BE_BoitEng_Hauteur_mm_dist, data=PRODWS)
+abline(modWS, lty=2, col="red3")
+anova(modWS)
+summary(modWS)
+legend("topright", bty= "n", legend=expression("R"^2~"= 0.03 n.s."), col="red3")
+dev.off()
+
+#### checking the relationship between RYT and the average productivity of the two genotypes in monoculture
+for (i in c(1:nrow(PROD))) {
+  geno1 <- strsplit(PROD[i,"Pair_unoriented"], ";")[[1]][1]
+  geno2 <- strsplit(PROD[i,"Pair_unoriented"], ";")[[1]][2]
+  trt <- PROD[i,"Treatment"]
+  
+  for (v in c("Shoot_DW", "Root_DW", "Total_DW")){
+    PROD[i,paste(v, "avg", sep="_")] <- mean(blup_monoc[which(blup_monoc$Treatment==trt & blup_monoc$Genotype%in%c(geno1,geno2)), v])
+  }
+}
+
+PRODWW <- PROD[which(PROD$Treatment=="WW"),]
+PRODWS <- PROD[which(PROD$Treatment=="WS"),]
+
+plot(Total_DW_RYT~Total_DW_avg, data=PRODWS,las=1, pch=16, col="red3")
+modWS <- lm(Total_DW_RYT~Total_DW_avg, data=PRODWS)
+abline(modWS, lty=2, col="red3")
+anova(modWS)
+summary(modWS)
+### High RYT are obtained when mixing genotypes with low productivity in monoculture
+
+
+#### checking the relationship monoculture biomass production and root surface
+monoc_trait_prod <- merge(blup_monoc, blup_trait_monoc, by=c("Genotype","Treatment"))
+
+ggplot(monoc_trait_prod, aes(x=SURF_Surface_Projetee_mm2, y=Total_DW, color=Treatment))+
+  geom_point()+
+  geom_smooth(method = "lm", fill = NA)+
+  stat_cor(method = "pearson")
+## ---> Higher root surface is associated with increased biomass in monoculture (Both in the WW and WS treatment, and both above and belowground biomass)
+
+### checking the relationship between genotypes'RY and the root surface of their neighbors
+RY <- blup_mixt[,c(1,2,6:8)]
+for (i in c(1:nrow(RY))) {
+  RY[i,"focal"] <- as.character(strsplit(RY[i,"Pair"], ";")[[1]][1])
+  RY[i,"neighbour"] <- as.character(strsplit(RY[i,"Pair"], ";")[[1]][2])
+  
+  RY[i,"neighbour_SURF"] <- blup_trait_monoc[which(blup_trait_monoc$Treatment==RY[i,"Treatment"] & blup_trait_monoc$Genotype==RY[i,"neighbour"]), "SURF_Surface_Projetee_mm2"]
+  
+  RY[i,"diff_with_neighbour_SURF"] <- (RY[i,"neighbour_SURF"] -  blup_trait_monoc[which(blup_trait_monoc$Treatment==RY[i,"Treatment"] & blup_trait_monoc$Genotype==RY[i,"focal"]), "SURF_Surface_Projetee_mm2"])/blup_trait_monoc[which(blup_trait_monoc$Treatment==RY[i,"Treatment"] & blup_trait_monoc$Genotype==RY[i,"focal"]), "SURF_Surface_Projetee_mm2"]
+  
+  RY[i,"neighbour_SURF_plasticity"] <- (RY[i,"neighbour_SURF"] -  blup_trait_monoc[which(blup_trait_monoc$Treatment=="WW" & blup_trait_monoc$Genotype==RY[i,"neighbour"]), "SURF_Surface_Projetee_mm2"])/blup_trait_monoc[which(blup_trait_monoc$Treatment=="WW" & blup_trait_monoc$Genotype==RY[i,"neighbour"]), "SURF_Surface_Projetee_mm2"]
+  
+}
+
+ggplot(RY, aes(x=diff_with_neighbour_SURF, y=Total_DW_RY, color=Treatment))+
+  geom_point()+
+  geom_smooth(method = "lm", fill = NA)+
+  stat_cor(method = "pearson")
+
+### checking the relationship between genotypes'RY and their biomass productivity in monoculture
+for (i in c(1:nrow(RY))) {
+  RY[i,"monoc_biomass"] <- blup_monoc[which(blup_monoc$Genotype==RY[i,"focal"] & blup_monoc$Treatment==RY[i,"Treatment"]),"Total_DW"]
+}
+
+ggplot(RY, aes(x=monoc_biomass, y=Total_DW_RY, color=Treatment))+
+  geom_point()+
+  geom_smooth(method = "lm", fill = NA)+
+  stat_cor(method = "pearson")
+
+
+### Comparing the genotypes with the highest and lowest root surfaces
+blup_trait_monoc_WW <- blup_trait_monoc[which(blup_trait_monoc$Treatment=="WW"),]
+big_WW <- blup_trait_monoc_WW[order(blup_trait_monoc_WW$SURF_Surface_Projetee_mm2, decreasing = T),][c(1:10),]
+big_WW$root_status <- "big"
+small_WW <- blup_trait_monoc_WW[order(blup_trait_monoc_WW$SURF_Surface_Projetee_mm2, decreasing = F),][c(1:10),]
+small_WW$root_status <- "small"
+
+blup_trait_monoc_WS <- blup_trait_monoc[which(blup_trait_monoc$Treatment=="WS"),]
+big_WS <- blup_trait_monoc_WS[order(blup_trait_monoc_WS$SURF_Surface_Projetee_mm2, decreasing = T),][c(1:10),]
+big_WS$root_status <- "big"
+small_WS <- blup_trait_monoc_WS[order(blup_trait_monoc_WS$SURF_Surface_Projetee_mm2, decreasing = F),][c(1:10),]
+small_WS$root_status <- "small"
+
+root_substet <- do.call(rbind, list(big_WW,small_WW,big_WS,small_WS))
+root_substet <- merge(root_substet, blup_monoc, by=c("Genotype", "Treatment"))
+
+### Comparing root surfaces between the two sets of genotypes (in monocultures)
+ggplot(root_substet, aes(x=root_status, y=SURF_Surface_Projetee_mm2, fill=Treatment))+
+  geom_boxplot()+
+  facet_wrap(~Treatment)
+
+### Comparing biomass production between the two sets of genotypes (in monoculture)
+ggplot(root_substet, aes(x=root_status, y=Total_DW, fill=Treatment))+
+  geom_boxplot()+
+  facet_wrap(~Treatment)
+
+### comparing root surface difference with neighbor between the two sets of genotypes (in mixture)
+RY[which(RY$Treatment=="WW" & RY$focal%in%big_WW$Genotype),"root_status"] <- "big"
+RY[which(RY$Treatment=="WW" & RY$focal%in%small_WW$Genotype),"root_status"] <- "small"
+RY[which(RY$Treatment=="WS" & RY$focal%in%big_WS$Genotype),"root_status"] <- "big"
+RY[which(RY$Treatment=="WS" & RY$focal%in%small_WS$Genotype),"root_status"] <- "small"
+
+ggplot(na.omit(RY), aes(x=root_status, y=diff_with_neighbour_SURF, fill=Treatment))+
+  geom_boxplot()+
+  facet_wrap(~Treatment)
+
+### comparing RYs the two sets of genotypes (in mixture)
+ggplot(na.omit(RY), aes(x=root_status, y=Shoot_DW_RY, fill=Treatment))+
+  geom_boxplot()+
+  facet_wrap(~Treatment)
+RY.without.na <- na.omit(RY)
+mod <- lmer(Shoot_DW_RY ~ root_status + Treatment + root_status:Treatment + (1|focal) + (1|neighbour), data=RY.without.na)
+anova(mod, ddf="Kenward-Roger")
+
+### comparing RYTs between mixtures involving genotypes from different the two sets
+for (i in c(1:nrow(PROD))) {
+  PROD[i,"focal"] <- as.character(strsplit(PROD[i,"Pair_unoriented"], ";")[[1]][1])
+  PROD[i,"neighbour"] <- as.character(strsplit(PROD[i,"Pair_unoriented"], ";")[[1]][2])
+}
+PROD[which(PROD$Treatment=="WW" & PROD$focal%in%big_WW$Genotype),"root_status"] <- "big"
+PROD[which(PROD$Treatment=="WW" & PROD$neighbour%in%big_WW$Genotype),"root_status"] <- "big"
+
+PROD[which(PROD$Treatment=="WW" & PROD$focal%in%small_WW$Genotype),"root_status"] <- "small"
+PROD[which(PROD$Treatment=="WW" & PROD$neighbour%in%small_WW$Genotype),"root_status"] <- "small"
+
+PROD[which(PROD$Treatment=="WS" & PROD$focal%in%big_WS$Genotype),"root_status"] <- "big"
+PROD[which(PROD$Treatment=="WS" & PROD$neighbour%in%big_WS$Genotype),"root_status"] <- "big"
+
+PROD[which(PROD$Treatment=="WS" & PROD$focal%in%small_WS$Genotype),"root_status"] <- "small"
+PROD[which(PROD$Treatment=="WS" & PROD$neighbour%in%small_WS$Genotype),"root_status"] <- "small"
+
+ggplot(na.omit(PROD), aes(x=root_status, y=Total_DW_RYT, fill=Treatment))+
+  geom_boxplot()+
+  facet_wrap(~Treatment)
