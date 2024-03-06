@@ -44,7 +44,7 @@ for (d in dates) {
   colnames(root)[which(colnames(root)=="plantid")] <- "RT_ID"
   colnames(root)[which(colnames(root)=="ABCDEF")] <- "Plant_ID"
   
-  root <- merge(root, har[,c("RT_ID", "Plant_ID", "Focal", "Neighbour","Assoc","Treatment","Repetition")], by=c("RT_ID","Plant_ID"))
+  root <- merge(root, har[,c("RT_ID", "Plant_ID", "Focal", "Neighbour","stand","Treatment","Repetition")], by=c("RT_ID","Plant_ID"))
   
   ### reordering columns
   root <- root[,c(17,1,2,18:22,3:16)]
@@ -97,8 +97,8 @@ for (d in unique(all_root$date)) {
 all_root_trait$pair <- as.factor(paste(all_root_trait$Focal, all_root_trait$Neighbour, sep=";"))
 all_root_trait$Treatment <- as.factor(all_root_trait$Treatment)
 all_root_trait$Treatment  = factor(all_root_trait$Treatment ,levels(all_root_trait$Treatment )[c(2,1)])
-all_root_trait$Assoc <- as.factor(all_root_trait$Assoc)
-all_root_trait$Assoc = factor(all_root_trait$Assoc,levels(all_root_trait$Assoc)[c(2,1)])
+all_root_trait$stand <- as.factor(all_root_trait$stand)
+all_root_trait$stand = factor(all_root_trait$stand,levels(all_root_trait$stand)[c(2,1)])
 all_root_trait$Repetition <- as.factor(all_root_trait$Repetition)
 all_root_trait$date <- as.factor(all_root_trait$date)
 
@@ -106,15 +106,15 @@ all_root_trait$date <- as.factor(all_root_trait$date)
 all_root_trait[which(all_root_trait$SPUR_Squelette_Corrige_mm>100000),"SPUR_Squelette_Corrige_mm"] <- NA
 
 ### Overall stats
-mod <- lmer(BE_BoitEng_Hauteur_mm ~ date + Treatment + date:Treatment + Treatment/Repetition + Assoc + Treatment:Assoc + date:Assoc + date:Treatment:Assoc + (1|pair) , data=all_root_trait)
+mod <- lmer(BE_BoitEng_Hauteur_mm ~ date + Treatment + date:Treatment + Treatment/Repetition + stand + Treatment:stand + date:stand + date:Treatment:stand + (1|pair) , data=all_root_trait)
 summary(mod)
 #anova(mod, ddf = "Kenward-Roger") 
 
-mod <- lmer(SPUR_Squelette_Corrige_mm ~ date + Treatment  + date:Treatment +  Treatment/Repetition + Assoc + Treatment:Assoc + date:Assoc + date:Treatment:Assoc + (1|pair), data=all_root_trait)
+mod <- lmer(SPUR_Squelette_Corrige_mm ~ date + Treatment  + date:Treatment +  Treatment/Repetition + stand + Treatment:stand + date:stand + date:Treatment:stand + (1|pair), data=all_root_trait)
 summary(mod)
 #anova(mod, ddf = "Kenward-Roger") 
 
-mod <- lmer(SURF_Surface_Projetee_mm2 ~ date + Treatment +  date:Treatment + Treatment/Repetition + Assoc + Treatment:Assoc + date:Assoc + (1|pair), data=all_root_trait)
+mod <- lmer(SURF_Surface_Projetee_mm2 ~ date + Treatment +  date:Treatment + Treatment/Repetition + stand + Treatment:stand + date:stand + (1|pair), data=all_root_trait)
 summary(mod)
 #anova(mod, ddf = "Kenward-Roger") 
 
