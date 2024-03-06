@@ -1,6 +1,6 @@
 ### G. Montazeaud
 
-### Analysis of wheat mixture experimental data. 36 genotypes were grown in monocultures and in 54 two-way mixtures with two treatments (WW = non limiting water and nitrogen, WS = limiting water and nitrogen) in controled conditions (Dijon, 4PMI platform)
+### Analysis of wheat mixture experimental data. 36 genotypes were grown in monocultures and in 54 two-way mixtures with two treatments (C = non limiting water and nutrients, S = limiting water and nutrients) in controled conditions (Dijon, 4PMI platform)
 
 ## Mixing varieties reduces root competition between wheat seedlings grown under resource-limited conditions
 ######################################
@@ -30,9 +30,8 @@ har <- merge(har,leafN, by=c("RT_ID","Plant_ID"),all.x=T)
 
 ## Re-ordering factor levels
 har$Treatment <- as.factor(har$Treatment)
-har$Treatment = factor(har$Treatment,levels(har$Treatment)[c(2,1)])
-har$Assoc <- as.factor(har$Assoc)
-har$Assoc = factor(har$Assoc,levels(har$Assoc)[c(2,1)])
+har$stand <- as.factor(har$stand)
+har$stand = factor(har$stand,levels(har$stand)[c(2,1)])
 har$Repetition <- as.factor(har$Repetition)
 
 ## Adding +1 tiller to all plants so that the baseline tiller number is 1 and not 0
@@ -185,17 +184,17 @@ all_root_trait <- read.csv("data/processed_data/Root_traits_D3.csv", header=T)
 ########## MERGING ROOT TRAIT DATA AND ABOVEGROUND DATA
 
 ## Summing all aboveground trait (but leafN) per RT and per genotype
-har_ag <- aggregate(.~RT_ID+Assoc+Treatment+Repetition+Sampling_ID, data=har[,-which(colnames(har)%in%c("Plant_ID","Root_Shoot_Ratio","Comments","Focal","Neighbour","leaf_N","Day_leafN_measurement"))], FUN=sum)
+har_ag <- aggregate(.~RT_ID+stand+Treatment+Repetition+Sampling_ID, data=har[,-which(colnames(har)%in%c("Plant_ID","Root_Shoot_Ratio","Comments","Focal","Neighbour","leaf_N","Day_leafN_measurement"))], FUN=sum)
 har_ag$Root_Shoot_Ratio <- har_ag$Root_DW/har_ag$Shoot_DW
 
 ## Averaging LeafN per rhyzotube
-leafN_ag <- aggregate(leaf_N~RT_ID+Assoc+Treatment+Repetition+Day_leafN_measurement, data=har[,-which(colnames(har)%in%c("Plant_ID","Root_Shoot_Ratio","Comments","Focal","Neighbour"))], FUN=mean)
+leafN_ag <- aggregate(leaf_N~RT_ID+stand+Treatment+Repetition+Day_leafN_measurement, data=har[,-which(colnames(har)%in%c("Plant_ID","Root_Shoot_Ratio","Comments","Focal","Neighbour"))], FUN=mean)
 
 ## Merging leafN data and other aboveground traits
-har_ag <- merge(har_ag,leafN_ag,by=c("RT_ID", "Assoc", "Treatment", "Repetition"), all.x=T)
+har_ag <- merge(har_ag,leafN_ag,by=c("RT_ID", "stand", "Treatment", "Repetition"), all.x=T)
 
 ## merging above and belowground data
-all_trait <- merge(har_ag, all_root_trait, by=c("RT_ID", "Assoc", "Treatment", "Repetition"))
+all_trait <- merge(har_ag, all_root_trait, by=c("RT_ID", "stand", "Treatment", "Repetition"))
 
 ## Reordering columns
 all_trait <- all_trait[,c(20,1:13,17:19)]
