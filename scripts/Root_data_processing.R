@@ -9,7 +9,7 @@ library(lme4)
 ## Data loading
 dates <- c("28_06_2019","07_07_2019","15_07_2019") # root traits were measured at three different dates 
 lots <- c("Calib01","Calib02","Calib03","Calib04","Clim","Rec") # there are three types of samples in the data set: calibration samples (used to calibrate image analysis), climatic samples (used to assess the effect of the local climate on plant growth), and the harvest ("Rec" for "Récolte") data which corresponds to the main experimental data. 
-har <-  read.table("data/raw_data/biomass_data/harvest_data.csv", header=T, sep=",") # harvest data is used to have the genotype IDs for each RT
+har <-  read.table("data/raw_data/biomass_data/harvest_data.csv", header=T, sep=";") # harvest data is used to have the genotype IDs for each RT
 
 ## We first load a list of all rhizotubes for each type of samples (calibration samples, climatic samples, and harvest samples)
 ref <- read.table("data/raw_data/List_rhyzotubes.csv", header=T, sep=",")
@@ -44,7 +44,7 @@ for (d in dates) {
   colnames(root)[which(colnames(root)=="plantid")] <- "RT_ID"
   colnames(root)[which(colnames(root)=="ABCDEF")] <- "Plant_ID"
   
-  root <- merge(root, har[,c("RT_ID", "Plant_ID", "Focal", "Neighbour","stand","Treatment","Repetition")], by=c("RT_ID","Plant_ID"))
+  root <- merge(root, har[,c("RT_ID", "Plant_ID", "Focal", "Neighbour","stand","Treatment","Block")], by=c("RT_ID","Plant_ID"))
   
   ### reordering columns
   root <- root[,c(17,1,2,18:22,3:16)]
@@ -99,22 +99,22 @@ all_root_trait$Treatment <- as.factor(all_root_trait$Treatment)
 all_root_trait$Treatment  = factor(all_root_trait$Treatment ,levels(all_root_trait$Treatment )[c(2,1)])
 all_root_trait$stand <- as.factor(all_root_trait$stand)
 all_root_trait$stand = factor(all_root_trait$stand,levels(all_root_trait$stand)[c(2,1)])
-all_root_trait$Repetition <- as.factor(all_root_trait$Repetition)
+all_root_trait$Block <- as.factor(all_root_trait$Block)
 all_root_trait$date <- as.factor(all_root_trait$date)
 
 ### Removing some strange values
 all_root_trait[which(all_root_trait$SPUR_Squelette_Corrige_mm>100000),"SPUR_Squelette_Corrige_mm"] <- NA
 
 ### Overall stats
-mod <- lmer(BE_BoitEng_Hauteur_mm ~ date + Treatment + date:Treatment + Treatment/Repetition + stand + Treatment:stand + date:stand + date:Treatment:stand + (1|pair) , data=all_root_trait)
+mod <- lmer(BE_BoitEng_Hauteur_mm ~ date + Treatment + date:Treatment + Treatment/Block + stand + Treatment:stand + date:stand + date:Treatment:stand + (1|pair) , data=all_root_trait)
 summary(mod)
 #anova(mod, ddf = "Kenward-Roger") 
 
-mod <- lmer(SPUR_Squelette_Corrige_mm ~ date + Treatment  + date:Treatment +  Treatment/Repetition + stand + Treatment:stand + date:stand + date:Treatment:stand + (1|pair), data=all_root_trait)
+mod <- lmer(SPUR_Squelette_Corrige_mm ~ date + Treatment  + date:Treatment +  Treatment/Block + stand + Treatment:stand + date:stand + date:Treatment:stand + (1|pair), data=all_root_trait)
 summary(mod)
 #anova(mod, ddf = "Kenward-Roger") 
 
-mod <- lmer(SURF_Surface_Projetee_mm2 ~ date + Treatment +  date:Treatment + Treatment/Repetition + stand + Treatment:stand + date:stand + (1|pair), data=all_root_trait)
+mod <- lmer(SURF_Surface_Projetee_mm2 ~ date + Treatment +  date:Treatment + Treatment/Block + stand + Treatment:stand + date:stand + (1|pair), data=all_root_trait)
 summary(mod)
 #anova(mod, ddf = "Kenward-Roger") 
 
