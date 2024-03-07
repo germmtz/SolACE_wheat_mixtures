@@ -1,4 +1,4 @@
-"date","RT_ID","Focal","Neighbour","stand","Treatment","Repetition","BE_BoitEng_Hauteur_mm","SPUR_Squelette_Corrige_mm","SURF_Surface_Projetee_mm2","pair"
+"date","RT_ID","Focal","Neighbour","stand","Treatment","Block","BE_BoitEng_Hauteur_mm","SPUR_Squelette_Corrige_mm","SURF_Surface_Projetee_mm2","pair"
 "3",1,"NEMESIS","NEMESIS","pure","C","1",272.626,24175.1350985,23001.1477821613,"NEMESIS;NEMESIS"
 "3",10,"EL4X_120","Selcuklu-97","mixed","C","2",482.88,38428.2031345,34753.1514961117,"EL4X_120;Selcuklu-97"
 "3",100,"LLOYD","ANVERGUR","mixed","C","3",482.88,48341.7640415,44792.7513393357,"LLOYD;ANVERGUR"
