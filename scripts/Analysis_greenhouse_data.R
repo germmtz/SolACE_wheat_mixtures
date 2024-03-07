@@ -1,6 +1,8 @@
 ### Script to analyze the water status and nutrient solution provisionning of the Rhizotubes
 library(ggplot2)
 library(ggpubr)
+Sys.setlocale("LC_ALL", "English")
+
 
 ### I. Daily provision of nutrient solution
 nutri <- read.csv("./data/raw_data/greenhouse_data/Daily_nutrient_solution_inputs.csv", header=T, sep=";", dec=",")
