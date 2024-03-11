@@ -416,10 +416,10 @@ plt_leaf <- ggplot(data = all_trait, aes(x=Treatment, y=Leaf_nb_main_stem, color
            label="***",
            size=6)+
   ylim(12,45)+
-  labs(y = "# leaves on the main stems",
+  labs(y = "# leaves",
        x = "") +
   theme_classic() +
-  theme(axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
+  theme(axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.1)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
 
 plt_tiller <-  ggplot(data = all_trait, aes(x=Treatment, y=Tiller_nb, color=Treatment)) + 
   geom_violin(trim = F, size=0.9) + 
@@ -443,7 +443,7 @@ plt_tiller <-  ggplot(data = all_trait, aes(x=Treatment, y=Tiller_nb, color=Trea
   labs(y = "# tillers",
        x = "") +
   theme_classic() +
-  theme(axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
+  theme(axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.1)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
 
 plt_leafN <- ggplot(data = all_trait, aes(x=Treatment, y=leaf_N, color=Treatment)) + 
   geom_violin(trim = F, size=0.9) + 
@@ -467,7 +467,7 @@ plt_leafN <- ggplot(data = all_trait, aes(x=Treatment, y=leaf_N, color=Treatment
   labs(y = "Leaf N (%)",
        x = "") +
   theme_classic() +
-  theme(axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
+  theme(axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.1)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
 
 plt_Shoot_DW <- ggplot(data = all_trait, aes(x=Treatment, y=Shoot_DW, color=Treatment)) + 
   geom_violin(trim = F, size=0.9) + 
@@ -491,7 +491,7 @@ plt_Shoot_DW <- ggplot(data = all_trait, aes(x=Treatment, y=Shoot_DW, color=Trea
   labs(y = "Shoot biomass (mg)",
        x = "") +
   theme_classic() +
-  theme(axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
+  theme(axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.1)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
 
 plt_Root_DW <- ggplot(data = all_trait, aes(x=Treatment, y=Root_DW, color=Treatment)) + 
   geom_violin(trim = F, size=0.9) + 
@@ -515,7 +515,7 @@ plt_Root_DW <- ggplot(data = all_trait, aes(x=Treatment, y=Root_DW, color=Treatm
   labs(y = "Root biomass (mg)",
        x = "") +
   theme_classic() +
-  theme(axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
+  theme(axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.1)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
 
 
 plt_Total_DW <- ggplot(data = all_trait, aes(x=Treatment, y=Total_DW, color=Treatment)) + 
@@ -540,7 +540,7 @@ plt_Total_DW <- ggplot(data = all_trait, aes(x=Treatment, y=Total_DW, color=Trea
   labs(y = "Total biomass (mg)",
        x = "") +
   theme_classic() +
-  theme(axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
+  theme(axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.1)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
 
 plt_RSratio <- ggplot(data = all_trait, aes(x=Treatment, y=Root_Shoot_Ratio, color=Treatment)) + 
   geom_violin(trim = F, size=0.9) + 
@@ -564,7 +564,7 @@ plt_RSratio <- ggplot(data = all_trait, aes(x=Treatment, y=Root_Shoot_Ratio, col
   labs(y = "Root:Shoot ratio",
        x = "") +
   theme_classic() +
-  theme(axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
+  theme(axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.1)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
 
 plt_SPUR_Squelette_Corrige_mm <- ggplot(data = all_trait, aes(x=Treatment, y=SPUR_Squelette_Corrige_mm, color=Treatment)) + 
   geom_violin(trim = F, size=0.9) + 
@@ -588,7 +588,7 @@ plt_SPUR_Squelette_Corrige_mm <- ggplot(data = all_trait, aes(x=Treatment, y=SPU
   labs(y = "Root length (mm)",
        x = "") +
   theme_classic() +
-  theme(axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
+  theme(axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.1)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
 
 plt_SURF_Surface_Projetee_mm2 <- ggplot(data = all_trait, aes(x=Treatment, y=SURF_Surface_Projetee_mm2, color=Treatment)) + 
   geom_violin(trim = F, size=0.9) + 
@@ -612,12 +612,15 @@ plt_SURF_Surface_Projetee_mm2 <- ggplot(data = all_trait, aes(x=Treatment, y=SUR
   labs(y = expression("Root surface (mm"^2*")"),
        x = "") +
   theme_classic() +
-  theme(axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
+  theme(axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.1)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
   
 
 plot_grid(plotlist = list(plt_leaf, plt_tiller, plt_leafN, plt_Shoot_DW, plt_Root_DW, plt_Total_DW, plt_RSratio, plt_SPUR_Squelette_Corrige_mm, plt_SURF_Surface_Projetee_mm2),
           nrow=3,
-          ncol = 3)
+          ncol = 3, 
+          labels=c("(a)","(b)","(c)","(d)","(e)","(f)","(g)","(h)","(i)"),
+          label_fontface = "bold",
+          hjust = 0, label_x = 0.01)
 ggsave("outputs/plots/pot_level_treatment_effect.pdf", dpi=300, height=8, width=8)
 
 ## Plotting the effect of the stand type (pure vs mixed) on above an belowground traits
