@@ -1228,51 +1228,51 @@ ggsave("outputs/plots/pot_level_RYT_treatment_effect.pdf", dpi=300, height=4, wi
 #######################################
 
 ## Computing monoculure average trait values in each treatment
-trait_monoc <- all_trait[which(all_trait$Assoc=="Monoc"),]
+trait_monoc <- all_trait[which(all_trait$stand=="pure"),]
 for (i in c(1:nrow(trait_monoc))){
   trait_monoc[i,"Focal"] <- strsplit(as.character(trait_monoc[i,"pair"]), ";")[[1]][1]
 }
 trait_monoc$Focal <- as.factor(trait_monoc$Focal)
-blup_trait_monoc <- data.frame(Genotype=levels(trait_monoc$Focal), Treatment=rep(c("WW","WS"), each=36))
+blup_trait_monoc <- data.frame(Genotype=levels(trait_monoc$Focal), Treatment=rep(c("C","S"), each=36))
 
 ## Leaf Nb
-mod <- lmer(Leaf_nb_main_stem ~ Treatment + Treatment/Repetition + Sampling_ID + (1|Focal), data=trait_monoc)
+mod <- lmer(Leaf_nb_main_stem ~ Sampling_ID + Block + Treatment + (1|Focal), data=trait_monoc)
 
-blup_trait_monoc[which(blup_trait_monoc$Treatment=="WW"),"Leaf_nb_main_stem"] <- fixef(mod)[1]+ranef(mod)$Focal[1]
-blup_trait_monoc[which(blup_trait_monoc$Treatment=="WS"),"Leaf_nb_main_stem"] <- fixef(mod)[1]+ranef(mod)$Focal[1]+fixef(mod)[2]
+blup_trait_monoc[which(blup_trait_monoc$Treatment=="C"),"Leaf_nb_main_stem"] <- fixef(mod)[1]+ranef(mod)$Focal[1]
+blup_trait_monoc[which(blup_trait_monoc$Treatment=="S"),"Leaf_nb_main_stem"] <- fixef(mod)[1]+ranef(mod)$Focal[1]+fixef(mod)[7]
 
 ## Tiller Nb
-mod <- lmer(Tiller_nb ~ Treatment + Treatment/Repetition + Sampling_ID + (1+Treatment|Focal), data=trait_monoc)
+mod <- lmer(Tiller_nb ~ Sampling_ID + Block + Treatment + (1+Treatment|Focal), data=trait_monoc)
 
-blup_trait_monoc[which(blup_trait_monoc$Treatment=="WW"),"Tiller_nb"] <- fixef(mod)[1]+ranef(mod)$Focal[1]
-blup_trait_monoc[which(blup_trait_monoc$Treatment=="WS"),"Tiller_nb"] <- fixef(mod)[1]+ranef(mod)$Focal[1]+fixef(mod)[2]+ranef(mod)$Focal[2]
+blup_trait_monoc[which(blup_trait_monoc$Treatment=="C"),"Tiller_nb"] <- fixef(mod)[1]+ranef(mod)$Focal[1]
+blup_trait_monoc[which(blup_trait_monoc$Treatment=="S"),"Tiller_nb"] <- fixef(mod)[1]+ranef(mod)$Focal[1]+fixef(mod)[7]+ranef(mod)$Focal[2]
 
 ## Leaf N
-mod <- lmer(leaf_N ~ Treatment + Treatment/Repetition + Day_leafN_measurement + (1+Treatment|Focal), data=trait_monoc)
+mod <- lmer(leaf_N ~ Day_leafN_measurement + Block + Treatment + (1+Treatment|Focal), data=trait_monoc)
 
-blup_trait_monoc[which(blup_trait_monoc$Treatment=="WW"),"leaf_N"] <- fixef(mod)[1]+ranef(mod)$Focal[1]
-blup_trait_monoc[which(blup_trait_monoc$Treatment=="WS"),"leaf_N"] <- fixef(mod)[1]+ranef(mod)$Focal[1]+fixef(mod)[2]+ranef(mod)$Focal[2]
+blup_trait_monoc[which(blup_trait_monoc$Treatment=="C"),"leaf_N"] <- fixef(mod)[1]+ranef(mod)$Focal[1]
+blup_trait_monoc[which(blup_trait_monoc$Treatment=="S"),"leaf_N"] <- fixef(mod)[1]+ranef(mod)$Focal[1]+fixef(mod)[7]+ranef(mod)$Focal[2]
 
 ## Root prof
-mod <- lmer(BE_BoitEng_Hauteur_mm ~ Treatment + Treatment/Repetition + (1|Focal), data=trait_monoc)
+mod <- lmer(BE_BoitEng_Hauteur_mm ~ Block + Treatment + (1 |Focal), data=trait_monoc)
 summary(mod)
 
-blup_trait_monoc[which(blup_trait_monoc$Treatment=="WW"),"BE_BoitEng_Hauteur_mm"] <- fixef(mod)[1]+ranef(mod)$Focal[1]
-blup_trait_monoc[which(blup_trait_monoc$Treatment=="WS"),"BE_BoitEng_Hauteur_mm"] <- fixef(mod)[1]+ranef(mod)$Focal[1]+fixef(mod)[2]
+blup_trait_monoc[which(blup_trait_monoc$Treatment=="C"),"BE_BoitEng_Hauteur_mm"] <- fixef(mod)[1]+ranef(mod)$Focal[1]
+blup_trait_monoc[which(blup_trait_monoc$Treatment=="S"),"BE_BoitEng_Hauteur_mm"] <- fixef(mod)[1]+ranef(mod)$Focal[1]+fixef(mod)[4]
 
 ## Root length
-mod <- lmer(SPUR_Squelette_Corrige_mm ~ Treatment + Treatment/Repetition + (1+Treatment|Focal), data=trait_monoc)
+mod <- lmer(SPUR_Squelette_Corrige_mm ~ Block + Treatment + (1+Treatment|Focal), data=trait_monoc)
 summary(mod)
 
-blup_trait_monoc[which(blup_trait_monoc$Treatment=="WW"),"SPUR_Squelette_Corrige_mm"] <- fixef(mod)[1]+ranef(mod)$Focal[1]
-blup_trait_monoc[which(blup_trait_monoc$Treatment=="WS"),"SPUR_Squelette_Corrige_mm"] <- fixef(mod)[1]+ranef(mod)$Focal[1]+fixef(mod)[2]+ranef(mod)$Focal[2]
+blup_trait_monoc[which(blup_trait_monoc$Treatment=="C"),"SPUR_Squelette_Corrige_mm"] <- fixef(mod)[1]+ranef(mod)$Focal[1]
+blup_trait_monoc[which(blup_trait_monoc$Treatment=="S"),"SPUR_Squelette_Corrige_mm"] <- fixef(mod)[1]+ranef(mod)$Focal[1]+fixef(mod)[4]+ranef(mod)$Focal[2]
 
 ## Root area
-mod <- lmer(SURF_Surface_Projetee_mm2 ~ Treatment + Treatment/Repetition + (1+Treatment|Focal), data=trait_monoc)
+mod <- lmer(SURF_Surface_Projetee_mm2 ~ Block + Treatment + (1+Treatment|Focal), data=trait_monoc)
 summary(mod)
 
-blup_trait_monoc[which(blup_trait_monoc$Treatment=="WW"),"SURF_Surface_Projetee_mm2"] <- fixef(mod)[1]+ranef(mod)$Focal[1]
-blup_trait_monoc[which(blup_trait_monoc$Treatment=="WS"),"SURF_Surface_Projetee_mm2"] <- fixef(mod)[1]+ranef(mod)$Focal[1]+fixef(mod)[2]+ranef(mod)$Focal[2]
+blup_trait_monoc[which(blup_trait_monoc$Treatment=="C"),"SURF_Surface_Projetee_mm2"] <- fixef(mod)[1]+ranef(mod)$Focal[1]
+blup_trait_monoc[which(blup_trait_monoc$Treatment=="S"),"SURF_Surface_Projetee_mm2"] <- fixef(mod)[1]+ranef(mod)$Focal[1]+fixef(mod)[4]+ranef(mod)$Focal[2]
 
 ## computing trait averages and trait distances for each mixture
 for (i in c(1:nrow(RYT))) {
@@ -1294,13 +1294,13 @@ for (i in c(1:nrow(RYT))) {
 N <- 10L # number of models to be retained among the best models
 w <- 0.2 # barplot width space
 conversion <- 0.005 # conversion factor to define colors on a rgb scale between [0,1]
-cols <- c(rgb(0,150*conversion,50*conversion),rgb(150*conversion,75*conversion,0),rgb(0,50*conversion,150*conversion),rgb(1,1,1))  # vector of colors to differenciate aboveground traits (green), belowground traits (brown), and phenological traits (blue)
+cols <- c(rgb(0,150*conversion,50*conversion),rgb(150*conversion,75*conversion,0))  # vector of colors to differenciate aboveground traits (green) and belowground traits (brown)
 
 
-## Shoot RYT - WW Treatment
+## Shoot RYT - C Treatment
 
 ## Subsetting and scaling the data set 
-data_reg <- as.data.frame(scale(RYT[which(RYT$Treatment=="WW"),c(3,6:17)], center=T, scale = T))
+data_reg <- as.data.frame(scale(RYT[which(RYT$Treatment=="C"),c(3,6:11,14:17)], center=T, scale = T))
 
 ## Running model selection from the full_model with all traits
 full_model <- lm(Shoot_DW_RYT ~ ., data=data_reg)
@@ -1346,12 +1346,12 @@ effect_sizes$ub <- effect_sizes[,"Estimate"]+effect_sizes[,"+/- (alpha=0.05)"]
 effect_sizes$lb <- effect_sizes[,"Estimate"]-effect_sizes[,"+/- (alpha=0.05)"]
 
 ## Defining specific vector colors to match the traits retained in the model selection & model averaging procedure
-colvec <- cols[c(2,2,2,1,1,2)]
-bgvec <- cols[c(4,2,2,1,4,4)]
-densvec <- c(20,-9,-9,-9,20,20)
+colvec <- cols[c(2,2,2,1,2,1,1)]
+bgvec <- cols[c(4,2,2,1,4,4,1)]
+densvec <- c(20,-9,-9,-9,20,20,-9)
 anglevec <- rep(45,length(colvec))
 
-pdf("outputs/plots/Model_selection_Shoot_DW_RYT_WW.pdf", height=3, width=5, pointsize = 0.2)
+pdf("outputs/plots/Model_selection_Shoot_DW_RYT_C.pdf", height=3, width=5, pointsize = 0.2)
 
 par(mfrow=c(1,2))
 par(mar=c(4,5,1,1), oma=c(5,2,1,2), lwd=1.5)
@@ -1362,7 +1362,8 @@ abline(v=0, lty=2)
 arrows(effect_sizes$Estimate,effect_sizes$y,effect_sizes$ub,effect_sizes$y, code=2, angle=90, length=0.03, col=colvec, lwd=2.5)
 arrows(effect_sizes$Estimate,effect_sizes$y,effect_sizes$lb,effect_sizes$y, code=2, angle=90, length=0.03, col=colvec, lwd=2.5)
 points(effect_sizes$Estimate, effect_sizes$y, pch=21, bg=bgvec, col=colvec, cex=1.6, lwd=1.5)
-axis(2, las=1, labels=c("Root Surf.","Root Surf.","Root Len.","Leaf Nb","Tiller Nb","Root Len."), at=effect_sizes$y, tick=F, cex.lab=1.3, cex.axis=1.5) 
+
+axis(2, las=1, labels=c("Root surf.","Root surf.","Root len.","# leaves","Root len.","# tiller", "Leaf N"), at=effect_sizes$y, tick=F, cex.lab=1.3, cex.axis=1.5) 
 axis(1, at=seq(-1,1,by=0.5), cex.lab=1.3, cex.axis=1.3)
 
 ## 2nb plot: variable importance
@@ -1377,7 +1378,7 @@ ylegend =-(nrow(effect_sizes)+2)*(1-0.7)
 legend(x=xlegend,y=ylegend,legend=c(" "," "), pch=c(19,NA),fill=c(NA,"black"), bty="n", col=c("black","black"), border=c(NA,"black"), xjust=0.2, x.intersp = c(2,0.2), pt.cex = 1.5, cex=1.5, xpd=NA)
 legend(xlegend+0.02,ylegend*1.15, legend="Mean", bty="n", xpd=NA, cex=1.4)
 
-legend(x=xlegend+0.4,y=ylegend,legend=c(" "," "), pch=c(21,NA),fill=c(NA,"black"), bty="n", col=c("black","black"), border=c(NA,NA), xjust=0.2, x.intersp = c(2,0.2), pt.cex = 1.5, cex=1.5, xpd=NA, density=c(0,20))
+legend(x=xlegend+0.4,y=ylegend,legend=c(" "," "), pch=c(21,NA),fill=c(NA,"black"), bty="n", col=c("black","black"), border=c(NA,"black"), xjust=0.2, x.intersp = c(2,0.2), pt.cex = 1.5, cex=1.5, xpd=NA, density=c(0,20))
 legend(xlegend+0.02+0.4,ylegend*1.15, legend="Dist", bty="n", xpd=NA, cex=1.4)
 
 legend(x=xlegend+0.7,y=ylegend,legend=c(" "," "), fill=c(cols[1],cols[2]), bty="n", col=c("black","black"), border=c(NA,NA), xjust=0, cex=1.5, xpd=NA)
@@ -1385,10 +1386,10 @@ legend(x=xlegend+0.7,y=ylegend*1.01,legend=c("Aboveground","Belowground"), fill=
 
 dev.off()
 
-## Shoot RYT - WS Treatment
+## Shoot RYT - S Treatment
 
 ## Subsetting and scaling the data set 
-data_reg <- as.data.frame(scale(RYT[which(RYT$Treatment=="WS"),c(3,6:17)], center=T, scale = T))
+data_reg <- as.data.frame(scale(RYT[which(RYT$Treatment=="S"),c(3,6:11,14:17)], center=T, scale = T))
 
 ## Running model selection from the full_model with all traits
 full_model <- lm(Shoot_DW_RYT ~ ., data=data_reg)
@@ -1436,11 +1437,11 @@ effect_sizes$lb <- effect_sizes[,"Estimate"]-effect_sizes[,"+/- (alpha=0.05)"]
 
 ## Defining specific vector colors to match the traits retained in the model selection & model averaging procedure
 colvec <- cols[c(2,2,1,1,2,2,1,1)]
-bgvec <- cols[c(2,2,4,1,4,4,1,4)]
-densvec <- c(-9,-9,20,-9,20,20,-9,-9)
+bgvec <- cols[c(2,2,4,1,4,4,4,1)]
+densvec <- c(-9,-9,20,-9,20,20,20,-9)
 anglevec <- rep(45,length(colvec))
 
-pdf("outputs/plots/Model_selection_Shoot_DW_RYT_WS.pdf", height=3, width=5, pointsize = 0.2)
+pdf("outputs/plots/Model_selection_Shoot_DW_RYT_S.pdf", height=3, width=5, pointsize = 0.2)
 
 par(mfrow=c(1,2))
 par(mar=c(4,5,1,1), oma=c(5,2,1,2), lwd=1.5)
@@ -1451,7 +1452,7 @@ abline(v=0, lty=2)
 arrows(effect_sizes$Estimate,effect_sizes$y,effect_sizes$ub,effect_sizes$y, code=2, angle=90, length=0.03, col=colvec, lwd=2.5)
 arrows(effect_sizes$Estimate,effect_sizes$y,effect_sizes$lb,effect_sizes$y, code=2, angle=90, length=0.03, col=colvec, lwd=2.5)
 points(effect_sizes$Estimate, effect_sizes$y, pch=21, bg=bgvec, col=colvec, cex=1.6, lwd=1.5)
-axis(2, las=1, labels=c("Root Surf.","Root Len.","Leaf Nb","Leaf Nb","Root Surf.","Root Len.","Tiller Nb", "Leaf N"), at=effect_sizes$y, tick=F, cex.lab=1.3, cex.axis=1.5) 
+axis(2, las=1, labels=c("Root surf.","Root len.","# leaves","# leaves","Root surf.","Root len.","# tillers", "Leaf N"), at=effect_sizes$y, tick=F, cex.lab=1.3, cex.axis=1.5) 
 axis(1, at=seq(-2,2,by=0.5), cex.lab=1.3, cex.axis=1.3)
 
 ## 2nb plot: variable importance
@@ -1466,7 +1467,7 @@ ylegend =-(nrow(effect_sizes)+2)*(1-0.7)
 legend(x=xlegend,y=ylegend,legend=c(" "," "), pch=c(19,NA),fill=c(NA,"black"), bty="n", col=c("black","black"), border=c(NA,"black"), xjust=0.2, x.intersp = c(2,0.2), pt.cex = 1.5, cex=1.5, xpd=NA)
 legend(xlegend+0.02,ylegend*1.15, legend="Mean", bty="n", xpd=NA, cex=1.4)
 
-legend(x=xlegend+0.4,y=ylegend,legend=c(" "," "), pch=c(21,NA),fill=c(NA,"black"), bty="n", col=c("black","black"), border=c(NA,NA), xjust=0.2, x.intersp = c(2,0.2), pt.cex = 1.5, cex=1.5, xpd=NA, density=c(0,20))
+legend(x=xlegend+0.4,y=ylegend,legend=c(" "," "), pch=c(21,NA),fill=c(NA,"black"), bty="n", col=c("black","black"), border=c(NA,"black"), xjust=0.2, x.intersp = c(2,0.2), pt.cex = 1.5, cex=1.5, xpd=NA, density=c(0,20))
 legend(xlegend+0.02+0.4,ylegend*1.15, legend="Dist", bty="n", xpd=NA, cex=1.4)
 
 legend(x=xlegend+0.7,y=ylegend,legend=c(" "," "), fill=c(cols[1],cols[2]), bty="n", col=c("black","black"), border=c(NA,NA), xjust=0, cex=1.5, xpd=NA)
@@ -1475,11 +1476,10 @@ legend(x=xlegend+0.7,y=ylegend*1.01,legend=c("Aboveground","Belowground"), fill=
 dev.off()
 
 
-## RYT VARIABLES
-## Root DW - WW Treatment
+## Root DW - C Treatment
 
 ## Subsetting and scaling the data set 
-data_reg <- as.data.frame(scale(RYT[which(RYT$Treatment=="WW"),c(4,6:17)], center=T, scale = T))
+data_reg <- as.data.frame(scale(RYT[which(RYT$Treatment=="C"),c(4,6:11,14:17)], center=T, scale = T))
 
 ## Running model selection from the full_model with all traits
 full_model <- lm(Root_DW_RYT ~ ., data=data_reg)
@@ -1526,13 +1526,13 @@ effect_sizes$ub <- effect_sizes[,"Estimate"]+effect_sizes[,"+/- (alpha=0.05)"]
 effect_sizes$lb <- effect_sizes[,"Estimate"]-effect_sizes[,"+/- (alpha=0.05)"]
 
 ## Defining specific vector colors to match the traits retained in the model selection & model averaging procedure
-colvec <- cols[c(1,2,2,1,1,2,2)]
-bgvec <- cols[c(1,2,4,4,1,4,2)]
-densvec <- c(-9,-9,20,20,-9,20,-9)
+colvec <- cols[c(1,2,1,1,2,2,2)]
+bgvec <- cols[c(1,2,4,1,4,4,2)]
+densvec <- c(-9,-9,20,-9,20,20,-9)
 anglevec <- rep(45,length(colvec))
 
 
-pdf("outputs/plots/Model_selection_Root_DW_RYT_WW.pdf", height=3, width=5, pointsize = 0.2)
+pdf("outputs/plots/Model_selection_Root_DW_RYT_C.pdf", height=3, width=5, pointsize = 0.2)
 
 par(mfrow=c(1,2))
 par(mar=c(4,5,1,1), oma=c(5,2,1,2), lwd=1.5)
@@ -1543,7 +1543,7 @@ abline(v=0, lty=2)
 arrows(effect_sizes$Estimate,effect_sizes$y,effect_sizes$ub,effect_sizes$y, code=2, angle=90, length=0.03, col=colvec, lwd=2.5)
 arrows(effect_sizes$Estimate,effect_sizes$y,effect_sizes$lb,effect_sizes$y, code=2, angle=90, length=0.03, col=colvec, lwd=2.5)
 points(effect_sizes$Estimate, effect_sizes$y, pch=21, bg=bgvec, col=colvec, cex=1.6, lwd=1.5)
-axis(2, las=1, labels=c("Leaf Nb", "Root Surf.","Root Surf.", "Leaf N", "Leaf N","Root Len.", "Root Len."), at=effect_sizes$y, tick=F, cex.lab=1.3, cex.axis=1.5) 
+axis(2, las=1, labels=c("# leaves", "Root surf.", "Leaf N", "Leaf N", "Root surf.","Root len.", "Root len."), at=effect_sizes$y, tick=F, cex.lab=1.3, cex.axis=1.5) 
 axis(1, at=seq(-1,1,by=0.5), cex.lab=1.3, cex.axis=1.3)
 
 ## 2nb plot: variable importance
@@ -1558,7 +1558,7 @@ ylegend =-(nrow(effect_sizes)+2)*(1-0.7)
 legend(x=xlegend,y=ylegend,legend=c(" "," "), pch=c(19,NA),fill=c(NA,"black"), bty="n", col=c("black","black"), border=c(NA,"black"), xjust=0.2, x.intersp = c(2,0.2), pt.cex = 1.5, cex=1.5, xpd=NA)
 legend(xlegend+0.02,ylegend*1.15, legend="Mean", bty="n", xpd=NA, cex=1.4)
 
-legend(x=xlegend+0.4,y=ylegend,legend=c(" "," "), pch=c(21,NA),fill=c(NA,"black"), bty="n", col=c("black","black"), border=c(NA,NA), xjust=0.2, x.intersp = c(2,0.2), pt.cex = 1.5, cex=1.5, xpd=NA, density=c(0,20))
+legend(x=xlegend+0.4,y=ylegend,legend=c(" "," "), pch=c(21,NA),fill=c(NA,"black"), bty="n", col=c("black","black"), border=c(NA,"black"), xjust=0.2, x.intersp = c(2,0.2), pt.cex = 1.5, cex=1.5, xpd=NA, density=c(0,20))
 legend(xlegend+0.02+0.4,ylegend*1.15, legend="Dist", bty="n", xpd=NA, cex=1.4)
 
 legend(x=xlegend+0.7,y=ylegend,legend=c(" "," "), fill=c(cols[1],cols[2]), bty="n", col=c("black","black"), border=c(NA,NA), xjust=0, cex=1.5, xpd=NA)
@@ -1567,10 +1567,10 @@ legend(x=xlegend+0.7,y=ylegend*1.01,legend=c("Aboveground","Belowground"), fill=
 dev.off()
 
 
-## Root RYT - WS Treatment
+## Root RYT - S Treatment
 
 ## Subsetting and scaling the data set 
-data_reg <- as.data.frame(scale(RYT[which(RYT$Treatment=="WS"),c(4,6:17)], center=T, scale = T))
+data_reg <- as.data.frame(scale(RYT[which(RYT$Treatment=="S"),c(4,6:11,14:17)], center=T, scale = T))
 
 ## Running model selection from the full_model with all traits
 full_model <- lm(Root_DW_RYT ~ ., data=data_reg)
@@ -1617,13 +1617,13 @@ effect_sizes$ub <- effect_sizes[,"Estimate"]+effect_sizes[,"+/- (alpha=0.05)"]
 effect_sizes$lb <- effect_sizes[,"Estimate"]-effect_sizes[,"+/- (alpha=0.05)"]
 
 ## Defining specific vector colors to match the traits retained in the model selection & model averaging procedure
-colvec <- cols[c(2,1,2,1,2,2,2,1,1,1)]
-bgvec <- cols[c(2,1,2,4,4,4,4,4,1,1)]
-densvec <- c(-9,-9,-9,20,20,20,20,20,-9,-9)
+colvec <- cols[c(2,1,1,2,1,2,2,1,1)]
+bgvec <- cols[c(2,1,1,2,4,4,4,1,1)]
+densvec <- c(-9,-9,-9,-9,20,20,20,-9,20)
 anglevec <- rep(45,length(colvec))
 
 
-pdf("outputs/plots/Model_selection_Root_DW_RYT_WS.pdf", height=3, width=5, pointsize = 0.2)
+pdf("outputs/plots/Model_selection_Root_DW_RYT_S.pdf", height=3, width=5, pointsize = 0.2)
 
 par(mfrow=c(1,2))
 par(mar=c(4,5,1,1), oma=c(5,2,1,2), lwd=1.5)
@@ -1634,7 +1634,7 @@ abline(v=0, lty=2)
 arrows(effect_sizes$Estimate,effect_sizes$y,effect_sizes$ub,effect_sizes$y, code=2, angle=90, length=0.03, col=colvec, lwd=2.5)
 arrows(effect_sizes$Estimate,effect_sizes$y,effect_sizes$lb,effect_sizes$y, code=2, angle=90, length=0.03, col=colvec, lwd=2.5)
 points(effect_sizes$Estimate, effect_sizes$y, pch=21, bg=bgvec, col=colvec, cex=1.6, lwd=1.5)
-axis(2, las=1, labels=c("Root Surf.", "Tiller Nb","Root Len.", "Leaf Nb","Root Prof.", "Root Len.", "Root Surf.","Tiller Nb","Leaf Nb","Leaf N"), at=effect_sizes$y, tick=F, cex.lab=1.3, cex.axis=1.5) 
+axis(2, las=1, labels=c("Root surf.", "# tillers", "Leaf N","Root len.", "# leaves","Root len.","Root surf.","# leaves", "# tillers"), at=effect_sizes$y, tick=F, cex.lab=1.3, cex.axis=1.5) 
 axis(1, at=seq(-1,1,by=0.5), cex.lab=1.3, cex.axis=1.3)
 
 ## 2nb plot: variable importance
@@ -1649,7 +1649,7 @@ ylegend =-(nrow(effect_sizes)+2)*(1-0.7)
 legend(x=xlegend,y=ylegend,legend=c(" "," "), pch=c(19,NA),fill=c(NA,"black"), bty="n", col=c("black","black"), border=c(NA,"black"), xjust=0.2, x.intersp = c(2,0.2), pt.cex = 1.5, cex=1.5, xpd=NA)
 legend(xlegend+0.02,ylegend*1.15, legend="Mean", bty="n", xpd=NA, cex=1.4)
 
-legend(x=xlegend+0.4,y=ylegend,legend=c(" "," "), pch=c(21,NA),fill=c(NA,"black"), bty="n", col=c("black","black"), border=c(NA,NA), xjust=0.2, x.intersp = c(2,0.2), pt.cex = 1.5, cex=1.5, xpd=NA, density=c(0,20))
+legend(x=xlegend+0.4,y=ylegend,legend=c(" "," "), pch=c(21,NA),fill=c(NA,"black"), bty="n", col=c("black","black"), border=c(NA,"black"), xjust=0.2, x.intersp = c(2,0.2), pt.cex = 1.5, cex=1.5, xpd=NA, density=c(0,20))
 legend(xlegend+0.02+0.4,ylegend*1.15, legend="Dist", bty="n", xpd=NA, cex=1.4)
 
 legend(x=xlegend+0.7,y=ylegend,legend=c(" "," "), fill=c(cols[1],cols[2]), bty="n", col=c("black","black"), border=c(NA,NA), xjust=0, cex=1.5, xpd=NA)
@@ -1657,10 +1657,10 @@ legend(x=xlegend+0.7,y=ylegend*1.01,legend=c("Aboveground","Belowground"), fill=
 
 dev.off()
 
-## Total RYT - WW Treatment
+## Total RYT - C Treatment
 
 ## Subsetting and scaling the data set 
-data_reg <- as.data.frame(scale(RYT[which(RYT$Treatment=="WW"),c(5:17)], center=T, scale = T))
+data_reg <- as.data.frame(scale(RYT[which(RYT$Treatment=="C"),c(5:11,14:17)], center=T, scale = T))
 
 ## Running model selection from the full_model with all traits
 full_model <- lm(Total_DW_RYT ~ ., data=data_reg)
@@ -1707,12 +1707,12 @@ effect_sizes$ub <- effect_sizes[,"Estimate"]+effect_sizes[,"+/- (alpha=0.05)"]
 effect_sizes$lb <- effect_sizes[,"Estimate"]-effect_sizes[,"+/- (alpha=0.05)"]
 
 ## Defining specific vector colors to match the traits retained in the model selection & model averaging procedure
-colvec <- cols[c(2,2,1,2,1,2,1)]
-bgvec <- cols[c(4,2,1,2,1,4,1)]
-densvec <- c(20,-9,-9,-9,-9,20,-9)
+colvec <- cols[c(2,2,1,2,1,1,2)]
+bgvec <- cols[c(4,2,1,2,1,1,4)]
+densvec <- c(20,-9,-9,-9,-9,-9,20)
 anglevec <- rep(45,length(colvec))
 
-pdf("outputs/plots/Model_selection_Total_DW_RYT_WW.pdf", height=3, width=5, pointsize = 0.2)
+pdf("outputs/plots/Model_selection_Total_DW_RYT_C.pdf", height=3, width=5, pointsize = 0.2)
 
 par(mfrow=c(1,2))
 par(mar=c(4,5,1,1), oma=c(5,2,1,2), lwd=1.5)
@@ -1723,7 +1723,7 @@ abline(v=0, lty=2)
 arrows(effect_sizes$Estimate,effect_sizes$y,effect_sizes$ub,effect_sizes$y, code=2, angle=90, length=0.03, col=colvec, lwd=2.5)
 arrows(effect_sizes$Estimate,effect_sizes$y,effect_sizes$lb,effect_sizes$y, code=2, angle=90, length=0.03, col=colvec, lwd=2.5)
 points(effect_sizes$Estimate, effect_sizes$y, pch=21, bg=bgvec, col=colvec, cex=1.6, lwd=1.5)
-axis(2, las=1, labels=c("Root Surf.","Root Surf.","Leaf Nb", "Root Len.", "Leaf N","Root Len.", "Tiller Nb"), at=effect_sizes$y, tick=F, cex.lab=1.3, cex.axis=1.5) 
+axis(2, las=1, labels=c("Root surf.","Root surf.","# leaves", "Root len.", "Leaf N", "# tillers", "Root len."), at=effect_sizes$y, tick=F, cex.lab=1.3, cex.axis=1.5) 
 axis(1, at=seq(-2,2,by=0.5), cex.lab=1.3, cex.axis=1.3)
 
 ## 2nb plot: variable importance
@@ -1738,7 +1738,7 @@ ylegend =-(nrow(effect_sizes)+2)*(1-0.7)
 legend(x=xlegend,y=ylegend,legend=c(" "," "), pch=c(19,NA),fill=c(NA,"black"), bty="n", col=c("black","black"), border=c(NA,"black"), xjust=0.2, x.intersp = c(2,0.2), pt.cex = 1.5, cex=1.5, xpd=NA)
 legend(xlegend+0.02,ylegend*1.15, legend="Mean", bty="n", xpd=NA, cex=1.4)
 
-legend(x=xlegend+0.4,y=ylegend,legend=c(" "," "), pch=c(21,NA),fill=c(NA,"black"), bty="n", col=c("black","black"), border=c(NA,NA), xjust=0.2, x.intersp = c(2,0.2), pt.cex = 1.5, cex=1.5, xpd=NA, density=c(0,20))
+legend(x=xlegend+0.4,y=ylegend,legend=c(" "," "), pch=c(21,NA),fill=c(NA,"black"), bty="n", col=c("black","black"), border=c(NA,"black"), xjust=0.2, x.intersp = c(2,0.2), pt.cex = 1.5, cex=1.5, xpd=NA, density=c(0,20))
 legend(xlegend+0.02+0.4,ylegend*1.15, legend="Dist", bty="n", xpd=NA, cex=1.4)
 
 legend(x=xlegend+0.7,y=ylegend,legend=c(" "," "), fill=c(cols[1],cols[2]), bty="n", col=c("black","black"), border=c(NA,NA), xjust=0, cex=1.5, xpd=NA)
@@ -1747,10 +1747,10 @@ legend(x=xlegend+0.7,y=ylegend*1.01,legend=c("Aboveground","Belowground"), fill=
 
 dev.off()
 
-## Total RYT - WS Treatment
+## Total RYT - S Treatment
 
 ## Subsetting and scaling the data set 
-data_reg <- as.data.frame(scale(RYT[which(RYT$Treatment=="WS"),c(5:17)], center=T, scale = T))
+data_reg <- as.data.frame(scale(RYT[which(RYT$Treatment=="S"),c(5:11,14:17)], center=T, scale = T))
 
 ## Running model selection from the full_model with all traits
 full_model <- lm(Total_DW_RYT ~ ., data=data_reg)
@@ -1802,7 +1802,7 @@ bgvec <- cols[c(2,2,1,1,4,4,4)]
 densvec <- c(-9,-9,-9,-9,20,20,20)
 anglevec <- rep(45,length(colvec))
 
-pdf("outputs/plots/Model_selection_Total_DW_RYT_WS.pdf", height=3, width=5, pointsize = 0.2)
+pdf("outputs/plots/Model_selection_Total_DW_RYT_S.pdf", height=3, width=5, pointsize = 0.2)
 
 par(mfrow=c(1,2))
 par(mar=c(4,5,1,1), oma=c(5,2,1,2), lwd=1.5)
@@ -1813,7 +1813,7 @@ abline(v=0, lty=2)
 arrows(effect_sizes$Estimate,effect_sizes$y,effect_sizes$ub,effect_sizes$y, code=2, angle=90, length=0.03, col=colvec, lwd=2.5)
 arrows(effect_sizes$Estimate,effect_sizes$y,effect_sizes$lb,effect_sizes$y, code=2, angle=90, length=0.03, col=colvec, lwd=2.5)
 points(effect_sizes$Estimate, effect_sizes$y, pch=21, bg=bgvec, col=colvec, cex=1.6, lwd=1.5)
-axis(2, las=1, labels=c("Root Surf.", "Root Len.", "Tiller Nb", "Leaf Nb","Leaf Nb","Leaf N","Root Surf."), at=effect_sizes$y, tick=F, cex.lab=1.3, cex.axis=1.5) 
+axis(2, las=1, labels=c("Root surf.", "Root len.", "# tillers", "# leaves","# leaves","Leaf N","Root surf."), at=effect_sizes$y, tick=F, cex.lab=1.3, cex.axis=1.5) 
 axis(1, at=seq(-2,2,by=0.5), cex.lab=1.3, cex.axis=1.3)
 
 ## 2nb plot: variable importance
@@ -1828,7 +1828,7 @@ ylegend =-(nrow(effect_sizes)+2)*(1-0.7)
 legend(x=xlegend,y=ylegend,legend=c(" "," "), pch=c(19,NA),fill=c(NA,"black"), bty="n", col=c("black","black"), border=c(NA,"black"), xjust=0.2, x.intersp = c(2,0.2), pt.cex = 1.5, cex=1.5, xpd=NA)
 legend(xlegend+0.02,ylegend*1.15, legend="Mean", bty="n", xpd=NA, cex=1.4)
 
-legend(x=xlegend+0.4,y=ylegend,legend=c(" "," "), pch=c(21,NA),fill=c(NA,"black"), bty="n", col=c("black","black"), border=c(NA,NA), xjust=0.2, x.intersp = c(2,0.2), pt.cex = 1.5, cex=1.5, xpd=NA, density=c(0,20))
+legend(x=xlegend+0.4,y=ylegend,legend=c(" "," "), pch=c(21,NA),fill=c(NA,"black"), bty="n", col=c("black","black"), border=c(NA,"black"), xjust=0.2, x.intersp = c(2,0.2), pt.cex = 1.5, cex=1.5, xpd=NA, density=c(0,20))
 legend(xlegend+0.02+0.4,ylegend*1.15, legend="Dist", bty="n", xpd=NA, cex=1.4)
 
 legend(x=xlegend+0.7,y=ylegend,legend=c(" "," "), fill=c(cols[1],cols[2]), bty="n", col=c("black","black"), border=c(NA,NA), xjust=0, cex=1.5, xpd=NA)
@@ -1855,18 +1855,18 @@ ggsave("outputs/plots/RYT_vs_root_surface_measured_in_monocultures.pdf", dpi=300
 
 ### Checking the relationship btw avg root surface and RYT on Total biomass RYT, using avg root surface from mixture rhyzotrons
 ##1. computing avg root surface in mixture rhyzotrons
-root_traits_mix <- all_root_trait[which(all_root_trait$Assoc=="Mixt"),]
+root_traits_mix <- all_root_trait[which(all_root_trait$stand=="mixed"),]
 for (i in c(1:nrow(root_traits_mix))) {
   root_traits_mix[i,"Pair_unoriented"] <- paste(sort(c(root_traits_mix[i,"Focal"],root_traits_mix[i,"Neighbour"])), collapse = ";")
 }
 
 root_traits_mix$Pair_unoriented <- as.factor(root_traits_mix$Pair_unoriented)
-blup_SURF_mix <- data.frame(Pair_unoriented=levels(root_traits_mix$Pair_unoriented), Treatment=rep(c("WW","WS"), each=54))
+blup_SURF_mix <- data.frame(Pair_unoriented=levels(root_traits_mix$Pair_unoriented), Treatment=rep(c("C","S"), each=54))
 
-mod <- lmer(SURF_Surface_Projetee_mm2 ~ Treatment + Treatment/Repetition +  (1|Pair_unoriented), data=root_traits_mix)
+mod <- lmer(SURF_Surface_Projetee_mm2 ~ Block + Treatment +  (1|Pair_unoriented), data=root_traits_mix)
 
-blup_SURF_mix[which(blup_SURF_mix$Treatment=="WW"),"SURF_Surface_Projetee_mm2"] <- fixef(mod)[1]+ranef(mod)$Pair_unoriented[1]
-blup_SURF_mix[which(blup_SURF_mix$Treatment=="WS"),"SURF_Surface_Projetee_mm2"] <- fixef(mod)[1]+ranef(mod)$Pair_unoriented[1]+fixef(mod)[2]
+blup_SURF_mix[which(blup_SURF_mix$Treatment=="C"),"SURF_Surface_Projetee_mm2"] <- fixef(mod)[1]+ranef(mod)$Pair_unoriented[1]
+blup_SURF_mix[which(blup_SURF_mix$Treatment=="S"),"SURF_Surface_Projetee_mm2"] <- fixef(mod)[1]+ranef(mod)$Pair_unoriented[1]+fixef(mod)[3]
 
 ##2. merging root surface in mixture rhyzotrons with the global data set
 RYT <- merge(RYT, blup_SURF_mix, by=c("Pair_unoriented","Treatment"))
@@ -1915,7 +1915,7 @@ ggsave("outputs/plots/RYT_vs_monoculture_prod.pdf", dpi=300, height=6, width=8)
 #### checking the relationship monoculture biomass production and root surface
 monoc_trait_prod <- merge(blup_monoc, blup_trait_monoc, by=c("Genotype","Treatment"))
 monoc_trait_prod$Treatment <- as.factor(monoc_trait_prod$Treatment)
-monoc_trait_prod$Treatment <- factor(monoc_trait_prod$Treatment, levels=c("WW","WS"))
+monoc_trait_prod$Treatment <- factor(monoc_trait_prod$Treatment, levels=c("C","S"))
 
 ggplot(monoc_trait_prod, aes(x=SURF_Surface_Projetee_mm2, y=Total_DW, color=Treatment, shape=Treatment))+
   geom_point()+
@@ -1938,7 +1938,7 @@ for (i in c(1:nrow(blup_mixt))) {
 }
 
 blup_mixt$Treatment <- as.factor(blup_mixt$Treatment)
-blup_mixt$Treatment <- factor(blup_mixt$Treatment, levels=c("WW","WS"))
+blup_mixt$Treatment <- factor(blup_mixt$Treatment, levels=c("C","S"))
 pl1 <- ggplot(blup_mixt, aes(x=monoc_root_surf, y=Total_DW_RY, color=Treatment, shape=Treatment))+
   geom_point()+
   scale_color_manual(values=c("blue","red"))+
