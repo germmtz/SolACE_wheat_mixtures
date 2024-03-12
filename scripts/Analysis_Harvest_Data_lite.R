@@ -643,7 +643,7 @@ plt_leaf <- ggplot(data = all_trait, aes(x=stand, y=Leaf_nb_main_stem, color=sta
            label="n.s.",
            size=4)+
   ylim(12,45)+
-  labs(y = "# leaves on the main stems",
+  labs(y = "# leaves",
        x = "") +
   theme_classic() +
   theme(axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
@@ -844,7 +844,10 @@ plt_SURF_Surface_Projetee_mm2 <- ggplot(data = all_trait, aes(x=stand, y=SURF_Su
 
 plot_grid(plotlist = list(plt_leaf, plt_tiller, plt_leafN, plt_Shoot_DW, plt_Root_DW, plt_Total_DW, plt_RSratio, plt_SPUR_Squelette_Corrige_mm, plt_SURF_Surface_Projetee_mm2),
           nrow=3,
-          ncol = 3)
+          ncol = 3, 
+          labels=c("(a)","(b)","(c)","(d)","(e)","(f)","(g)","(h)","(i)"),
+          label_fontface = "bold",
+          hjust = 0, label_x = 0.01)
 
 ggsave("outputs/plots/pot_level_stand_effect.pdf", dpi=300, height=8, width=8)
 
@@ -1221,7 +1224,10 @@ plt_RYT_Total <- ggplot(data = RYT, aes(x=Treatment, y=Total_DW_RYT, color=Treat
 
 plot_grid(plotlist = list(plt_RYT_Shoot, plt_RYT_Root, plt_RYT_Total),
           nrow=1,
-          ncol = 3)
+          ncol = 3,
+          labels=c("(a)","(b)","(c)"),
+          label_fontface = "bold",
+          hjust = 0, label_x = 0.01)
 ggsave("outputs/plots/pot_level_RYT_treatment_effect.pdf", dpi=300, height=4, width=10)
 
 
