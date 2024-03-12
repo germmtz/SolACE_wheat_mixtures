@@ -80,4 +80,4 @@ plot_grid(plotlist=list(p1,p2),
           label_x = 0.00,
           hjust=0)
           
-ggsave("./manuscript/Figures_&_tables/FigS1_rhizotube_monitoring.png", dpi=300, height=5, width=6)
+ggsave("./outputs/plots/FigS1_rhizotube_monitoring.pdf", dpi=300, height=5, width=6)
