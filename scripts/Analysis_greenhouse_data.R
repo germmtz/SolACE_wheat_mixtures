@@ -70,7 +70,14 @@ p2 <- ggplot(aes(x=date, y=water_status, color=Treatment), data=water[which(wate
   theme_bw()
 
 
-ggarrange(plotlist=list(p1,p2),
+plot_grid(plotlist=list(p1,p2),
           nrow=2,
-          ncol=1)
+          ncol=1,
+          labels=c("(a)","(b)"),
+          label_fontface = "bold",
+          label_size = 11,
+          align="v",
+          label_x = 0.00,
+          hjust=0)
+          
 ggsave("./manuscript/Figures_&_tables/FigS1_rhizotube_monitoring.png", dpi=300, height=5, width=6)
