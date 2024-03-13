@@ -1342,7 +1342,7 @@ info_model$weight <- Lik/sum(Lik) # weights
 
 # Re-ordering columns
 info_model <- info_model[,c(2,ncol(info_model),3:(ncol(info_model)-1))]
-
+write.csv(info_model, file="./outputs/data/model_avg_shoot_RYT_C.csv", row.names=F)
 ######
 ### Plots
 ########
@@ -1432,7 +1432,7 @@ info_model$weight <- Lik/sum(Lik) # weights
 
 # Re-ordering columns
 info_model <- info_model[,c(2,ncol(info_model),3:(ncol(info_model)-1))]
-
+write.csv(info_model, file="./outputs/data/model_avg_shoot_RYT_S.csv", row.names=F)
 ######
 ### Plots
 ########
@@ -1522,7 +1522,7 @@ info_model$weight <- Lik/sum(Lik) # weights
 
 # Re-ordering columns
 info_model <- info_model[,c(2,ncol(info_model),3:(ncol(info_model)-1))]
-
+write.csv(info_model, file="./outputs/data/model_avg_root_RYT_C.csv", row.names=F)
 ######
 ### Plots
 ########
@@ -1613,7 +1613,7 @@ info_model$weight <- Lik/sum(Lik) # weights
 
 # Re-ordering columns
 info_model <- info_model[,c(2,ncol(info_model),3:(ncol(info_model)-1))]
-
+write.csv(info_model, file="./outputs/data/model_avg_root_RYT_s.csv", row.names=F)
 ######
 ### Plots
 ########
@@ -1627,7 +1627,7 @@ effect_sizes$lb <- effect_sizes[,"Estimate"]-effect_sizes[,"+/- (alpha=0.05)"]
 
 ## Defining specific vector colors to match the traits retained in the model selection & model averaging procedure
 colvec <- cols[c(2,1,1,2,1,2,2,1,1)]
-bgvec <- cols[c(2,1,1,2,4,4,4,1,1)]
+bgvec <- cols[c(2,1,1,2,4,4,4,1,4)]
 densvec <- c(-9,-9,-9,-9,20,20,20,-9,20)
 anglevec <- rep(45,length(colvec))
 
@@ -1703,7 +1703,7 @@ info_model$weight <- Lik/sum(Lik) # weights
 
 # Re-ordering columns
 info_model <- info_model[,c(2,ncol(info_model),3:(ncol(info_model)-1))]
-
+write.csv(info_model, file="./outputs/data/model_avg_total_RYT_C.csv", row.names=F)
 ######
 ### Plots
 ########
@@ -1793,7 +1793,7 @@ info_model$weight <- Lik/sum(Lik) # weights
 
 # Re-ordering columns
 info_model <- info_model[,c(2,ncol(info_model),3:(ncol(info_model)-1))]
-
+write.csv(info_model, file="./outputs/data/model_avg_total_RYT_S.csv", row.names=F)
 ######
 ### Plots
 ########
