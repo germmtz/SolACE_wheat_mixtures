@@ -1388,7 +1388,7 @@ legend(x=xlegend,y=ylegend,legend=c(" "," "), pch=c(19,NA),fill=c(NA,"black"), b
 legend(xlegend+0.02,ylegend*1.15, legend="Mean", bty="n", xpd=NA, cex=1.4)
 
 legend(x=xlegend+0.4,y=ylegend,legend=c(" "," "), pch=c(21,NA),fill=c(NA,"black"), bty="n", col=c("black","black"), border=c(NA,"black"), xjust=0.2, x.intersp = c(2,0.2), pt.cex = 1.5, cex=1.5, xpd=NA, density=c(0,20))
-legend(xlegend+0.02+0.4,ylegend*1.15, legend="Dist", bty="n", xpd=NA, cex=1.4)
+legend(xlegend+0.02+0.4,ylegend*1.15, legend="Diff.", bty="n", xpd=NA, cex=1.4)
 
 legend(x=xlegend+0.7,y=ylegend,legend=c(" "," "), fill=c(cols[1],cols[2]), bty="n", col=c("black","black"), border=c(NA,NA), xjust=0, cex=1.5, xpd=NA)
 legend(x=xlegend+0.7,y=ylegend*1.01,legend=c("Aboveground","Belowground"), fill=c(NA,NA), bty="n", col=c(NA,NA), border=c(NA,NA), xjust=0,cex=1.4, xpd=NA)
@@ -1477,7 +1477,7 @@ legend(x=xlegend,y=ylegend,legend=c(" "," "), pch=c(19,NA),fill=c(NA,"black"), b
 legend(xlegend+0.02,ylegend*1.15, legend="Mean", bty="n", xpd=NA, cex=1.4)
 
 legend(x=xlegend+0.4,y=ylegend,legend=c(" "," "), pch=c(21,NA),fill=c(NA,"black"), bty="n", col=c("black","black"), border=c(NA,"black"), xjust=0.2, x.intersp = c(2,0.2), pt.cex = 1.5, cex=1.5, xpd=NA, density=c(0,20))
-legend(xlegend+0.02+0.4,ylegend*1.15, legend="Dist", bty="n", xpd=NA, cex=1.4)
+legend(xlegend+0.02+0.4,ylegend*1.15, legend="Diff.", bty="n", xpd=NA, cex=1.4)
 
 legend(x=xlegend+0.7,y=ylegend,legend=c(" "," "), fill=c(cols[1],cols[2]), bty="n", col=c("black","black"), border=c(NA,NA), xjust=0, cex=1.5, xpd=NA)
 legend(x=xlegend+0.7,y=ylegend*1.01,legend=c("Aboveground","Belowground"), fill=c(NA,NA), bty="n", col=c(NA,NA), border=c(NA,NA), xjust=0,cex=1.4, xpd=NA)
@@ -1568,7 +1568,7 @@ legend(x=xlegend,y=ylegend,legend=c(" "," "), pch=c(19,NA),fill=c(NA,"black"), b
 legend(xlegend+0.02,ylegend*1.15, legend="Mean", bty="n", xpd=NA, cex=1.4)
 
 legend(x=xlegend+0.4,y=ylegend,legend=c(" "," "), pch=c(21,NA),fill=c(NA,"black"), bty="n", col=c("black","black"), border=c(NA,"black"), xjust=0.2, x.intersp = c(2,0.2), pt.cex = 1.5, cex=1.5, xpd=NA, density=c(0,20))
-legend(xlegend+0.02+0.4,ylegend*1.15, legend="Dist", bty="n", xpd=NA, cex=1.4)
+legend(xlegend+0.02+0.4,ylegend*1.15, legend="Diff.", bty="n", xpd=NA, cex=1.4)
 
 legend(x=xlegend+0.7,y=ylegend,legend=c(" "," "), fill=c(cols[1],cols[2]), bty="n", col=c("black","black"), border=c(NA,NA), xjust=0, cex=1.5, xpd=NA)
 legend(x=xlegend+0.7,y=ylegend*1.01,legend=c("Aboveground","Belowground"), fill=c(NA,NA), bty="n", col=c(NA,NA), border=c(NA,NA), xjust=0,cex=1.4, xpd=NA)
@@ -1659,7 +1659,7 @@ legend(x=xlegend,y=ylegend,legend=c(" "," "), pch=c(19,NA),fill=c(NA,"black"), b
 legend(xlegend+0.02,ylegend*1.15, legend="Mean", bty="n", xpd=NA, cex=1.4)
 
 legend(x=xlegend+0.4,y=ylegend,legend=c(" "," "), pch=c(21,NA),fill=c(NA,"black"), bty="n", col=c("black","black"), border=c(NA,"black"), xjust=0.2, x.intersp = c(2,0.2), pt.cex = 1.5, cex=1.5, xpd=NA, density=c(0,20))
-legend(xlegend+0.02+0.4,ylegend*1.15, legend="Dist", bty="n", xpd=NA, cex=1.4)
+legend(xlegend+0.02+0.4,ylegend*1.15, legend="Diff.", bty="n", xpd=NA, cex=1.4)
 
 legend(x=xlegend+0.7,y=ylegend,legend=c(" "," "), fill=c(cols[1],cols[2]), bty="n", col=c("black","black"), border=c(NA,NA), xjust=0, cex=1.5, xpd=NA)
 legend(x=xlegend+0.7,y=ylegend*1.01,legend=c("Aboveground","Belowground"), fill=c(NA,NA), bty="n", col=c(NA,NA), border=c(NA,NA), xjust=0,cex=1.4, xpd=NA)
@@ -1748,7 +1748,7 @@ legend(x=xlegend,y=ylegend,legend=c(" "," "), pch=c(19,NA),fill=c(NA,"black"), b
 legend(xlegend+0.02,ylegend*1.15, legend="Mean", bty="n", xpd=NA, cex=1.4)
 
 legend(x=xlegend+0.4,y=ylegend,legend=c(" "," "), pch=c(21,NA),fill=c(NA,"black"), bty="n", col=c("black","black"), border=c(NA,"black"), xjust=0.2, x.intersp = c(2,0.2), pt.cex = 1.5, cex=1.5, xpd=NA, density=c(0,20))
-legend(xlegend+0.02+0.4,ylegend*1.15, legend="Dist", bty="n", xpd=NA, cex=1.4)
+legend(xlegend+0.02+0.4,ylegend*1.15, legend="Diff.", bty="n", xpd=NA, cex=1.4)
 
 legend(x=xlegend+0.7,y=ylegend,legend=c(" "," "), fill=c(cols[1],cols[2]), bty="n", col=c("black","black"), border=c(NA,NA), xjust=0, cex=1.5, xpd=NA)
 legend(x=xlegend+0.7,y=ylegend*1.01,legend=c("Aboveground","Belowground"), fill=c(NA,NA), bty="n", col=c(NA,NA), border=c(NA,NA), xjust=0,cex=1.4, xpd=NA)
@@ -1838,7 +1838,7 @@ legend(x=xlegend,y=ylegend,legend=c(" "," "), pch=c(19,NA),fill=c(NA,"black"), b
 legend(xlegend+0.02,ylegend*1.15, legend="Mean", bty="n", xpd=NA, cex=1.4)
 
 legend(x=xlegend+0.4,y=ylegend,legend=c(" "," "), pch=c(21,NA),fill=c(NA,"black"), bty="n", col=c("black","black"), border=c(NA,"black"), xjust=0.2, x.intersp = c(2,0.2), pt.cex = 1.5, cex=1.5, xpd=NA, density=c(0,20))
-legend(xlegend+0.02+0.4,ylegend*1.15, legend="Dist", bty="n", xpd=NA, cex=1.4)
+legend(xlegend+0.02+0.4,ylegend*1.15, legend="Diff.", bty="n", xpd=NA, cex=1.4)
 
 legend(x=xlegend+0.7,y=ylegend,legend=c(" "," "), fill=c(cols[1],cols[2]), bty="n", col=c("black","black"), border=c(NA,NA), xjust=0, cex=1.5, xpd=NA)
 legend(x=xlegend+0.7,y=ylegend*1.01,legend=c("Aboveground","Belowground"), fill=c(NA,NA), bty="n", col=c(NA,NA), border=c(NA,NA), xjust=0,cex=1.4, xpd=NA)
