@@ -32,7 +32,7 @@
      inkscape:window-x="1912"
      inkscape:window-y="-8"
      inkscape:window-maximized="1"
-     inkscape:current-layer="g237">
+     inkscape:current-layer="svg1">
     <inkscape:page
        x="0"
        y="0"
@@ -4744,9 +4744,9 @@
      inkscape:label="Total_biomass_Title"><tspan
        x="72.850736"
        y="39.504739"
-       id="tspan2"><tspan
+       id="tspan17"><tspan
          style="font-weight:bold;-inkscape-font-specification:'Arial Bold';fill:#000000;stroke:none"
-         id="tspan1">Total biomass RYT</tspan></tspan></text>
+         id="tspan16">Total biomass RYT</tspan></tspan></text>
   <text
      xml:space="preserve"
      id="text289-1-2"
@@ -4755,18 +4755,18 @@
      inkscape:label="Stressed_title"><tspan
        x="122.61628"
        y="39.504739"
-       id="tspan5"><tspan
+       id="tspan20"><tspan
          style="font-weight:bold;-inkscape-font-specification:'Arial Bold';fill:#ff0000"
-         id="tspan3">Stressed</tspan><tspan
+         id="tspan18">Stressed</tspan><tspan
          style="font-weight:bold;-inkscape-font-specification:'Arial Bold'"
-         id="tspan4">
+         id="tspan19">
 </tspan></tspan><tspan
        x="40.652344"
        y="62.371926"
-       id="tspan7"><tspan
+       id="tspan22"><tspan
          dx="0 11.864565 5.9270744 14.614561 14.229141"
          style="font-weight:bold;-inkscape-font-specification:'Arial Bold'"
-         id="tspan6">s RYT</tspan></tspan></text>
+         id="tspan21">s RYT</tspan></tspan></text>
   <text
      xml:space="preserve"
      id="text289-1"
@@ -4775,16 +4775,16 @@
      inkscape:label="Control_title"><tspan
        x="129.7621"
        y="39.504739"
-       id="tspan9"><tspan
+       id="tspan24"><tspan
          style="font-weight:bold;-inkscape-font-specification:'Arial Bold'"
-         id="tspan8">Control
+         id="tspan23">Control
 </tspan></tspan><tspan
        x="40.652344"
        y="62.371926"
-       id="tspan11"><tspan
+       id="tspan26"><tspan
          dx="0 11.864565 5.9270744 14.614561 14.229141"
          style="font-weight:bold;-inkscape-font-specification:'Arial Bold'"
-         id="tspan10">s RYT</tspan></tspan></text>
+         id="tspan25">s RYT</tspan></tspan></text>
   <text
      xml:space="preserve"
      id="text289-6-3"
@@ -4793,9 +4793,9 @@
      inkscape:label="(b)"><tspan
        x="44.865234"
        y="41.706778"
-       id="tspan13"><tspan
+       id="tspan28"><tspan
          style="font-weight:bold;-inkscape-font-specification:'Arial Bold';fill:#000000;stroke:none"
-         id="tspan12">(b)</tspan></tspan></text>
+         id="tspan27">(b)</tspan></tspan></text>
   <text
      xml:space="preserve"
      id="text289-6"
@@ -4804,11 +4804,11 @@
      inkscape:label="(a)"><tspan
        x="45.521484"
        y="41.706778"
-       id="tspan15"><tspan
+       id="tspan30"><tspan
          style="font-weight:bold;-inkscape-font-specification:'Arial Bold';fill:#000000;stroke:none"
-         id="tspan14">(a)</tspan></tspan></text>
+         id="tspan29">(a)</tspan></tspan></text>
   <g
-     transform="matrix(1.81905,0,0,1.81905,267.44604,65.078495)"
+     transform="matrix(1.81905,0,0,1.81905,267.44604,55.1557)"
      ns10:version="1.10.2"
      ns10:texconverter="pdflatex"
      ns10:pdfconverter="inkscape"
