@@ -1849,7 +1849,7 @@ dev.off()
 ### FOLLOW UP ANALYSIS ON RYT-ROOT TRAITS RELATIONSHIPS 
 ########################
 
-## Checking the relationship btw avg root surface and RYT on Total biomass RYT
+## Checking the relationship btw RYT on Total biomass RYT and avg root surface and 
 ggplot(RYT, aes(x=SURF_Surface_Projetee_mm2_avg, y=Total_DW_RYT, color=Treatment, shape=Treatment))+
   geom_point()+
   scale_color_manual(values=c("blue","red"))+
@@ -1894,6 +1894,24 @@ ggplot(RYT, aes(x=SURF_Surface_Projetee_mm2, y=Total_DW_RYT, color=Treatment, sh
 ggsave("outputs/plots/RYT_vs_root_surface_measured_in_mixtures.pdf", dpi=300, height=6, width=8)
 
 
+#### checking the relationship monoculture biomass production and root surface
+monoc_trait_prod <- merge(blup_monoc, blup_trait_monoc, by=c("Genotype","Treatment"))
+monoc_trait_prod$Treatment <- as.factor(monoc_trait_prod$Treatment)
+monoc_trait_prod$Treatment <- factor(monoc_trait_prod$Treatment, levels=c("C","S"))
+
+monoc_prod_vs_root_surf <- ggplot(monoc_trait_prod, aes(x=SURF_Surface_Projetee_mm2, y=Total_DW, color=Treatment, shape=Treatment))+
+  geom_point()+
+  scale_color_manual(values=c("blue","red"))+
+  scale_shape_manual(values=c(16,17))+
+  labs(x = expression("Pure stand root surface (mm"^2*")"),
+       y = "Pure stand total biomass (mg)")+
+  geom_smooth(method = "lm", fill = NA, show.legend = F)+
+  stat_cor(method = "pearson", show.legend = F)+
+  theme_bw()
+#ggsave("outputs/plots/monoculture_prod_vs_root_surface.pdf", dpi=300, height=6, width=8)
+## ---> Higher root surface in monoculture is associated with increased biomas (both in the WW and WS treatment, and both above and belowground)
+
+
 #### checking the relationship between RYT and the average productivity of the two genotypes in monoculture
 for (i in c(1:nrow(RYT))) {
   geno1 <- strsplit(RYT[i,"Pair_unoriented"], ";")[[1]][1]
@@ -1909,34 +1927,19 @@ modWS <- lm(Total_DW_RYT~Total_DW_avg*Treatment, data=RYT)
 anova(modWS)
 summary(modWS)
 
-ggplot(RYT, aes(x=Total_DW_avg, y=Total_DW_RYT, color=Treatment, shape=Treatment))+
+RYT_vs_mono_biom <- ggplot(RYT, aes(x=Total_DW_avg, y=Total_DW_RYT, color=Treatment, shape=Treatment))+
   geom_point()+
   scale_color_manual(values=c("blue","red"))+
   scale_shape_manual(values=c(16,17))+
-  labs(x = "Average biomass in monoculture (mg)",
+  labs(x = "Average biomass in pure stand (mg)",
        y = "Total biomass RYT")+
+  ylim(0.7,1.3)+
   geom_smooth(method = "lm", fill = NA, show.legend = F)+
   stat_cor(method = "pearson", show.legend = F)+
   theme_bw()
-ggsave("outputs/plots/RYT_vs_monoculture_prod.pdf", dpi=300, height=6, width=8)
+#ggsave("outputs/plots/RYT_vs_monoculture_prod.pdf", dpi=300, height=6, width=8)
 ## --->  High RYT are obtained when mixing genotypes with low productivity in monoculture
 
-#### checking the relationship monoculture biomass production and root surface
-monoc_trait_prod <- merge(blup_monoc, blup_trait_monoc, by=c("Genotype","Treatment"))
-monoc_trait_prod$Treatment <- as.factor(monoc_trait_prod$Treatment)
-monoc_trait_prod$Treatment <- factor(monoc_trait_prod$Treatment, levels=c("C","S"))
-
-ggplot(monoc_trait_prod, aes(x=SURF_Surface_Projetee_mm2, y=Total_DW, color=Treatment, shape=Treatment))+
-  geom_point()+
-  scale_color_manual(values=c("blue","red"))+
-  scale_shape_manual(values=c(16,17))+
-  labs(x = expression("Root projected area (mm"^2*")"),
-       y = "Total biomass (mg)")+
-  geom_smooth(method = "lm", fill = NA, show.legend = F)+
-  stat_cor(method = "pearson", show.legend = F)+
-  theme_bw()
-ggsave("outputs/plots/monoculture_prod_vs_root_surface.pdf", dpi=300, height=6, width=8)
-## ---> Higher root surface in monoculture is associated with increased biomas (both in the WW and WS treatment, and both above and belowground)
 
 ### checking the relationship between genotypes'RY and (i) biomass productivity in monoculture, (ii) root projected area in monoculture
 for (i in c(1:nrow(blup_mixt))) {
@@ -1948,29 +1951,38 @@ for (i in c(1:nrow(blup_mixt))) {
 
 blup_mixt$Treatment <- as.factor(blup_mixt$Treatment)
 blup_mixt$Treatment <- factor(blup_mixt$Treatment, levels=c("C","S"))
-pl1 <- ggplot(blup_mixt, aes(x=monoc_root_surf, y=Total_DW_RY, color=Treatment, shape=Treatment))+
+
+
+RY_vs_monoc_surf <- ggplot(blup_mixt, aes(x=monoc_root_surf, y=Total_DW_RY, color=Treatment, shape=Treatment))+
   geom_point()+
   scale_color_manual(values=c("blue","red"))+
   scale_shape_manual(values=c(16,17))+
-  labs(x =  expression("monoculture root projected area (mm"^2*")"),
-       y = "biomass RY")+
+  labs(x =  expression("Pure stand root surface (mm"^2*")"),
+       y = "Total biomass RY")+
+  ylim(0.3,0.75)+
   geom_smooth(method = "lm", fill = NA, show.legend = F)+
   stat_cor(method = "pearson", show.legend = F)+
   theme_bw()
 
-pl2 <- ggplot(blup_mixt, aes(x=monoc_biomass, y=Total_DW_RY, color=Treatment, shape=Treatment))+
+RY_vs_monoc_biom <- ggplot(blup_mixt, aes(x=monoc_biomass, y=Total_DW_RY, color=Treatment, shape=Treatment))+
   geom_point()+
   scale_color_manual(values=c("blue","red"))+
   scale_shape_manual(values=c(16,17))+
-  labs(x = "monoculture biomass (mg)",
-       y = "biomass RY")+
+  labs(x = "Total biomass in pure stand (mg)",
+       y = "Total biomass RY")+
+  ylim(0.3,0.75)+
   geom_smooth(method = "lm", fill = NA, show.legend = F)+
   stat_cor(method = "pearson", show.legend = F)+
   theme_bw()
 
-ggarrange(plotlist = list(pl1,pl2),
-          nrow=1,
+
+ggarrange(monoc_prod_vs_root_surf,RYT_vs_mono_biom, RY_vs_monoc_surf, RY_vs_monoc_biom,
+          nrow=2,
           ncol=2,
+          labels=c("(a)","(b)","(c)","(d)"),
+          font.label = list(size = 14, color = "black", face = "bold", family = NULL),
           common.legend = T)
-ggsave("outputs/plots/RY_vs_monoculture_biomass_&_root_projected_area.pdf", dpi=300, height=5, width=9)
+
+
+ggsave("outputs/plots/RYT_root_surf.pdf", dpi=300, height=7, width=8)
 
