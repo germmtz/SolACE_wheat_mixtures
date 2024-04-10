@@ -1962,6 +1962,15 @@ RYT_vs_surf_plasticity <- ggplot(RYT, aes(x=SURF_Surface_Projetee_mm2_diff, y=To
   stat_cor(method = "pearson", show.legend = F)+
   theme_bw()
 
+RYT_S <- droplevels(RYT[which(RYT$Treatment=="S"),])
+mod <- lm(Total_DW_RYT~SURF_Surface_Projetee_mm2_diff, data=RYT_S)
+summary(mod)
+anova(mod)
+
+RYT_C <- droplevels(RYT[which(RYT$Treatment=="C"),])
+mod <- lm(Total_DW_RYT~SURF_Surface_Projetee_mm2_diff, data=RYT_C)
+summary(mod)
+anova(mod)
 
 ggarrange(monoc_prod_vs_root_surf, RY_vs_monoc_surf, RY_vs_root_surf_dist,RYT_vs_surf_plasticity,
           nrow=2,
