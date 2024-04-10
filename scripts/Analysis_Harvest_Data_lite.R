@@ -1862,38 +1862,6 @@ ggplot(RYT, aes(x=SURF_Surface_Projetee_mm2_avg, y=Total_DW_RYT, color=Treatment
 ggsave("outputs/plots/RYT_vs_root_surface_measured_in_monocultures.pdf", dpi=300, height=6, width=8)
 
 
-### Checking the relationship btw avg root surface and RYT on Total biomass RYT, using avg root surface from mixture rhyzotrons
-##1. computing avg root surface in mixture rhyzotrons
-root_traits_mix <- all_root_trait[which(all_root_trait$stand=="mixed"),]
-for (i in c(1:nrow(root_traits_mix))) {
-  root_traits_mix[i,"Pair_unoriented"] <- paste(sort(c(root_traits_mix[i,"Focal"],root_traits_mix[i,"Neighbour"])), collapse = ";")
-}
-
-root_traits_mix$Pair_unoriented <- as.factor(root_traits_mix$Pair_unoriented)
-blup_SURF_mix <- data.frame(Pair_unoriented=levels(root_traits_mix$Pair_unoriented), Treatment=rep(c("C","S"), each=54))
-
-mod <- lmer(SURF_Surface_Projetee_mm2 ~ Block + Treatment +  (1|Pair_unoriented), data=root_traits_mix)
-
-blup_SURF_mix[which(blup_SURF_mix$Treatment=="C"),"SURF_Surface_Projetee_mm2"] <- fixef(mod)[1]+ranef(mod)$Pair_unoriented[1]
-blup_SURF_mix[which(blup_SURF_mix$Treatment=="S"),"SURF_Surface_Projetee_mm2"] <- fixef(mod)[1]+ranef(mod)$Pair_unoriented[1]+fixef(mod)[3]
-
-##2. merging root surface in mixture rhyzotrons with the global data set
-RYT <- merge(RYT, blup_SURF_mix, by=c("Pair_unoriented","Treatment"))
-RYT$SURF_Surface_Projetee_mm2_diff <- (RYT$SURF_Surface_Projetee_mm2-RYT$SURF_Surface_Projetee_mm2_avg)/RYT$SURF_Surface_Projetee_mm2_avg
-
-##3. plotting the relationship between RYT and root surface measured in mixtures
-ggplot(RYT, aes(x=SURF_Surface_Projetee_mm2, y=Total_DW_RYT, color=Treatment, shape=Treatment))+
-  geom_point()+
-  scale_color_manual(values=c("blue","red"))+
-  scale_shape_manual(values=c(16,17))+
-  labs(x = expression("Average root projected area (mm"^2*")"),
-       y = "Total biomass RYT")+
-  geom_smooth(method = "lm", fill = NA, show.legend = F)+
-  stat_cor(method = "pearson", show.legend = F)+
-  theme_bw()
-ggsave("outputs/plots/RYT_vs_root_surface_measured_in_mixtures.pdf", dpi=300, height=6, width=8)
-
-
 #### checking the relationship monoculture biomass production and root surface
 monoc_trait_prod <- merge(blup_monoc, blup_trait_monoc, by=c("Genotype","Treatment"))
 monoc_trait_prod$Treatment <- as.factor(monoc_trait_prod$Treatment)
@@ -1908,40 +1876,9 @@ monoc_prod_vs_root_surf <- ggplot(monoc_trait_prod, aes(x=SURF_Surface_Projetee_
   geom_smooth(method = "lm", fill = NA, show.legend = F)+
   stat_cor(method = "pearson", show.legend = F)+
   theme_bw()
-#ggsave("outputs/plots/monoculture_prod_vs_root_surface.pdf", dpi=300, height=6, width=8)
-## ---> Higher root surface in monoculture is associated with increased biomas (both in the WW and WS treatment, and both above and belowground)
 
 
-#### checking the relationship between RYT and the average productivity of the two genotypes in monoculture
-for (i in c(1:nrow(RYT))) {
-  geno1 <- strsplit(RYT[i,"Pair_unoriented"], ";")[[1]][1]
-  geno2 <- strsplit(RYT[i,"Pair_unoriented"], ";")[[1]][2]
-  trt <- RYT[i,"Treatment"]
-  
-  for (v in c("Shoot_DW", "Root_DW", "Total_DW")){
-    RYT[i,paste(v, "avg", sep="_")] <- mean(blup_monoc[which(blup_monoc$Treatment==trt & blup_monoc$Genotype%in%c(geno1,geno2)), v])
-  }
-}
-
-modWS <- lm(Total_DW_RYT~Total_DW_avg*Treatment, data=RYT)
-anova(modWS)
-summary(modWS)
-
-RYT_vs_mono_biom <- ggplot(RYT, aes(x=Total_DW_avg, y=Total_DW_RYT, color=Treatment, shape=Treatment))+
-  geom_point()+
-  scale_color_manual(values=c("blue","red"))+
-  scale_shape_manual(values=c(16,17))+
-  labs(x = "Average biomass in pure stand (mg)",
-       y = "Total biomass RYT")+
-  ylim(0.7,1.3)+
-  geom_smooth(method = "lm", fill = NA, show.legend = F)+
-  stat_cor(method = "pearson", show.legend = F)+
-  theme_bw()
-#ggsave("outputs/plots/RYT_vs_monoculture_prod.pdf", dpi=300, height=6, width=8)
-## --->  High RYT are obtained when mixing genotypes with low productivity in monoculture
-
-
-### checking the relationship between genotypes'RY and (i) biomass productivity in monoculture, (ii) root projected area in monoculture
+### checking the relationship between genotypes'RY and root projected area in monoculture
 for (i in c(1:nrow(blup_mixt))) {
   blup_mixt[i,"focal"] <- as.character(strsplit(blup_mixt[i,"Pair"], ";")[[1]][1])
   blup_mixt[i,"neighbour"] <- as.character(strsplit(blup_mixt[i,"Pair"], ";")[[1]][2])
@@ -1964,6 +1901,7 @@ RY_vs_monoc_surf <- ggplot(blup_mixt, aes(x=monoc_root_surf, y=Total_DW_RY, colo
   stat_cor(method = "pearson", show.legend = F)+
   theme_bw()
 
+### checking the relationship between genotypes'RY and biomass production in monoculture
 RY_vs_monoc_biom <- ggplot(blup_mixt, aes(x=monoc_biomass, y=Total_DW_RY, color=Treatment, shape=Treatment))+
   geom_point()+
   scale_color_manual(values=c("blue","red"))+
@@ -1976,13 +1914,63 @@ RY_vs_monoc_biom <- ggplot(blup_mixt, aes(x=monoc_biomass, y=Total_DW_RY, color=
   theme_bw()
 
 
-ggarrange(monoc_prod_vs_root_surf,RYT_vs_mono_biom, RY_vs_monoc_surf, RY_vs_monoc_biom,
+#### checking the relationship between RY and the hierarchical root surface distance
+for (i in c(1:nrow(blup_mixt))) {
+  blup_mixt[i,"root_surf_dist"] <- (monoc_trait_prod[which(monoc_trait_prod$Genotype==blup_mixt[i,"focal"] & monoc_trait_prod$Treatment==blup_mixt[i,"Treatment"]),"SURF_Surface_Projetee_mm2"] -  monoc_trait_prod[which(monoc_trait_prod$Genotype==blup_mixt[i,"neighbour"] & monoc_trait_prod$Treatment==blup_mixt[i,"Treatment"]),"SURF_Surface_Projetee_mm2"])/monoc_trait_prod[which(monoc_trait_prod$Genotype==blup_mixt[i,"focal"] & monoc_trait_prod$Treatment==blup_mixt[i,"Treatment"]),"SURF_Surface_Projetee_mm2"]
+}
+
+RY_vs_root_surf_dist <- ggplot(blup_mixt, aes(x=root_surf_dist, y=Total_DW_RY, color=Treatment, shape=Treatment))+
+  geom_point()+
+  scale_color_manual(values=c("blue","red"))+
+  scale_shape_manual(values=c(16,17))+
+  labs(x = "Hierarchical root surface distance (%)",
+       y = "Total biomass RY")+
+  ylim(0.3,0.75)+
+  geom_smooth(method = "lm", fill = NA, show.legend = F)+
+  stat_cor(method = "pearson", show.legend = F)+
+  theme_bw()
+
+### Checking the relationship btw RYT and plasticity of root surface between mixtures and monocultures
+##1. computing avg root surface in mixture rhyzotrons
+root_traits_mix <- all_root_trait[which(all_root_trait$stand=="mixed"),]
+for (i in c(1:nrow(root_traits_mix))) {
+  root_traits_mix[i,"Pair_unoriented"] <- paste(sort(c(root_traits_mix[i,"Focal"],root_traits_mix[i,"Neighbour"])), collapse = ";")
+}
+
+root_traits_mix$Pair_unoriented <- as.factor(root_traits_mix$Pair_unoriented)
+blup_SURF_mix <- data.frame(Pair_unoriented=levels(root_traits_mix$Pair_unoriented), Treatment=rep(c("C","S"), each=54))
+
+mod <- lmer(SURF_Surface_Projetee_mm2 ~ Block + Treatment +  (1|Pair_unoriented), data=root_traits_mix)
+
+blup_SURF_mix[which(blup_SURF_mix$Treatment=="C"),"SURF_Surface_Projetee_mm2"] <- fixef(mod)[1]+ranef(mod)$Pair_unoriented[1]
+blup_SURF_mix[which(blup_SURF_mix$Treatment=="S"),"SURF_Surface_Projetee_mm2"] <- fixef(mod)[1]+ranef(mod)$Pair_unoriented[1]+fixef(mod)[3]
+
+##2. merging root surface in mixture rhyzotrons with the global data set
+RYT <- merge(RYT, blup_SURF_mix, by=c("Pair_unoriented","Treatment"))
+
+##3. Computing root surface plasticity between monocultures and mixtures
+RYT$SURF_Surface_Projetee_mm2_diff <- (RYT$SURF_Surface_Projetee_mm2-RYT$SURF_Surface_Projetee_mm2_avg)/RYT$SURF_Surface_Projetee_mm2_avg
+
+##4. plotting the relationship between RYT and root surface measured in mixtures
+RYT_vs_surf_plasticity <- ggplot(RYT, aes(x=SURF_Surface_Projetee_mm2_diff, y=Total_DW_RYT, color=Treatment, shape=Treatment))+
+  geom_point()+
+  scale_color_manual(values=c("blue","red"))+
+  scale_shape_manual(values=c(16,17))+
+  labs(x = "Root surface plasticity (%)",
+       y = "Total biomass RYT")+
+  geom_smooth(method = "lm", fill = NA, show.legend = F)+
+  stat_cor(method = "pearson", show.legend = F)+
+  theme_bw()
+
+
+ggarrange(monoc_prod_vs_root_surf, RY_vs_monoc_surf, RY_vs_root_surf_dist,RYT_vs_surf_plasticity,
           nrow=2,
           ncol=2,
           labels=c("(a)","(b)","(c)","(d)"),
-          font.label = list(size = 14, color = "black", face = "bold", family = NULL),
+          hjust=0,
+          vjust=0.5,
+          font.label = list(size = 14, color = "black", face = "bold"),
           common.legend = T)
-
 
 ggsave("outputs/plots/RYT_root_surf.pdf", dpi=300, height=7, width=8)
 
