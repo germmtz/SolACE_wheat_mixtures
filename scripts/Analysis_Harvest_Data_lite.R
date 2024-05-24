@@ -317,7 +317,7 @@ plt_SPUR_Squelette_Corrige_mm <- ggplot(all_trait, aes(x=SPUR_Squelette_Corrige_
 missing <- format(round(sum(is.na(all_trait$SURF_Surface_Projetee_mm2))/nrow(all_trait)*100,2), nsmall=2)
 plt_SURF_Surface_Projetee_mm2 <- ggplot(all_trait, aes(x=SURF_Surface_Projetee_mm2)) +
   geom_histogram(binwidth=5000, colour="black", fill="grey")+
-  labs(x=expression("Root Surface (mm"^2*")"),
+  labs(x=expression("Root projected area (mm"^2*")"),
        y="Nb obs")+
   annotate("text",
            label=c(paste("N obs = ",nrow(all_trait)), paste("%NA = ", missing, sep="")),
@@ -609,7 +609,7 @@ plt_SURF_Surface_Projetee_mm2 <- ggplot(data = all_trait, aes(x=Treatment, y=SUR
            vjust=1,
            label="**",
            size=6)+
-  labs(y = expression("Root surface (mm"^2*")"),
+  labs(y = expression("Root proj. area (mm"^2*")"),
        x = "") +
   theme_classic() +
   theme(axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.1)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
@@ -836,7 +836,7 @@ plt_SURF_Surface_Projetee_mm2 <- ggplot(data = all_trait, aes(x=stand, y=SURF_Su
            vjust=1,
            label="n.s.",
            size=4)+
-  labs(y = expression("Root surface (mm"^2*")"),
+  labs(y = expression("Root proj. area (mm"^2*")"),
        x = "") +
   theme_classic() +
   theme(axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
@@ -905,7 +905,7 @@ plt_SPUR_Squelette_Corrige_mm <- ggplot(data = all_trait, aes(x=Block, y=SPUR_Sq
 
 plt_SURF_Surface_Projetee_mm2 <- ggplot(data = all_trait, aes(x=Block, y=SURF_Surface_Projetee_mm2)) + 
   geom_boxplot() + 
-  labs(y = expression("Root surface (mm"^2*")"),
+  labs(y = expression("Root proj. area (mm"^2*")"),
        x = "") +
   theme(panel.grid.major = element_blank(), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
 
@@ -1372,7 +1372,7 @@ arrows(effect_sizes$Estimate,effect_sizes$y,effect_sizes$ub,effect_sizes$y, code
 arrows(effect_sizes$Estimate,effect_sizes$y,effect_sizes$lb,effect_sizes$y, code=2, angle=90, length=0.03, col=colvec, lwd=2.5)
 points(effect_sizes$Estimate, effect_sizes$y, pch=21, bg=bgvec, col=colvec, cex=1.6, lwd=1.5)
 
-axis(2, las=1, labels=c("Root surf.","Root surf.","Root len.","# leaves","Root len.","# tiller", "Leaf N"), at=effect_sizes$y, tick=F, cex.lab=1.3, cex.axis=1.5) 
+axis(2, las=1, labels=c("Root area","Root area","Root len.","# leaves","Root len.","# tiller", "Leaf N"), at=effect_sizes$y, tick=F, cex.lab=1.3, cex.axis=1.5) 
 axis(1, at=seq(-1,1,by=0.5), cex.lab=1.3, cex.axis=1.3)
 
 ## 2nb plot: variable importance
@@ -1461,7 +1461,7 @@ abline(v=0, lty=2)
 arrows(effect_sizes$Estimate,effect_sizes$y,effect_sizes$ub,effect_sizes$y, code=2, angle=90, length=0.03, col=colvec, lwd=2.5)
 arrows(effect_sizes$Estimate,effect_sizes$y,effect_sizes$lb,effect_sizes$y, code=2, angle=90, length=0.03, col=colvec, lwd=2.5)
 points(effect_sizes$Estimate, effect_sizes$y, pch=21, bg=bgvec, col=colvec, cex=1.6, lwd=1.5)
-axis(2, las=1, labels=c("Root surf.","Root len.","# leaves","# leaves","Root surf.","Root len.","# tillers", "Leaf N"), at=effect_sizes$y, tick=F, cex.lab=1.3, cex.axis=1.5) 
+axis(2, las=1, labels=c("Root area","Root len.","# leaves","# leaves","Root area","Root len.","# tillers", "Leaf N"), at=effect_sizes$y, tick=F, cex.lab=1.3, cex.axis=1.5) 
 axis(1, at=seq(-2,2,by=0.5), cex.lab=1.3, cex.axis=1.3)
 
 ## 2nb plot: variable importance
@@ -1552,7 +1552,7 @@ abline(v=0, lty=2)
 arrows(effect_sizes$Estimate,effect_sizes$y,effect_sizes$ub,effect_sizes$y, code=2, angle=90, length=0.03, col=colvec, lwd=2.5)
 arrows(effect_sizes$Estimate,effect_sizes$y,effect_sizes$lb,effect_sizes$y, code=2, angle=90, length=0.03, col=colvec, lwd=2.5)
 points(effect_sizes$Estimate, effect_sizes$y, pch=21, bg=bgvec, col=colvec, cex=1.6, lwd=1.5)
-axis(2, las=1, labels=c("# leaves", "Root surf.", "Leaf N", "Leaf N", "Root surf.","Root len.", "Root len."), at=effect_sizes$y, tick=F, cex.lab=1.3, cex.axis=1.5) 
+axis(2, las=1, labels=c("# leaves", "Root area", "Leaf N", "Leaf N", "Root area","Root len.", "Root len."), at=effect_sizes$y, tick=F, cex.lab=1.3, cex.axis=1.5) 
 axis(1, at=seq(-1,1,by=0.5), cex.lab=1.3, cex.axis=1.3)
 
 ## 2nb plot: variable importance
@@ -1643,7 +1643,7 @@ abline(v=0, lty=2)
 arrows(effect_sizes$Estimate,effect_sizes$y,effect_sizes$ub,effect_sizes$y, code=2, angle=90, length=0.03, col=colvec, lwd=2.5)
 arrows(effect_sizes$Estimate,effect_sizes$y,effect_sizes$lb,effect_sizes$y, code=2, angle=90, length=0.03, col=colvec, lwd=2.5)
 points(effect_sizes$Estimate, effect_sizes$y, pch=21, bg=bgvec, col=colvec, cex=1.6, lwd=1.5)
-axis(2, las=1, labels=c("Root surf.", "# tillers", "Leaf N","Root len.", "# leaves","Root len.","Root surf.","# leaves", "# tillers"), at=effect_sizes$y, tick=F, cex.lab=1.3, cex.axis=1.5) 
+axis(2, las=1, labels=c("Root area", "# tillers", "Leaf N","Root len.", "# leaves","Root len.","Root area","# leaves", "# tillers"), at=effect_sizes$y, tick=F, cex.lab=1.3, cex.axis=1.5) 
 axis(1, at=seq(-1,1,by=0.5), cex.lab=1.3, cex.axis=1.3)
 
 ## 2nb plot: variable importance
@@ -1732,7 +1732,7 @@ abline(v=0, lty=2)
 arrows(effect_sizes$Estimate,effect_sizes$y,effect_sizes$ub,effect_sizes$y, code=2, angle=90, length=0.03, col=colvec, lwd=2.5)
 arrows(effect_sizes$Estimate,effect_sizes$y,effect_sizes$lb,effect_sizes$y, code=2, angle=90, length=0.03, col=colvec, lwd=2.5)
 points(effect_sizes$Estimate, effect_sizes$y, pch=21, bg=bgvec, col=colvec, cex=1.6, lwd=1.5)
-axis(2, las=1, labels=c("Root surf.","Root surf.","# leaves", "Root len.", "Leaf N", "# tillers", "Root len."), at=effect_sizes$y, tick=F, cex.lab=1.3, cex.axis=1.5) 
+axis(2, las=1, labels=c("Root area","Root area","# leaves", "Root len.", "Leaf N", "# tillers", "Root len."), at=effect_sizes$y, tick=F, cex.lab=1.3, cex.axis=1.5) 
 axis(1, at=seq(-2,2,by=0.5), cex.lab=1.3, cex.axis=1.3)
 
 ## 2nb plot: variable importance
@@ -1822,7 +1822,7 @@ abline(v=0, lty=2)
 arrows(effect_sizes$Estimate,effect_sizes$y,effect_sizes$ub,effect_sizes$y, code=2, angle=90, length=0.03, col=colvec, lwd=2.5)
 arrows(effect_sizes$Estimate,effect_sizes$y,effect_sizes$lb,effect_sizes$y, code=2, angle=90, length=0.03, col=colvec, lwd=2.5)
 points(effect_sizes$Estimate, effect_sizes$y, pch=21, bg=bgvec, col=colvec, cex=1.6, lwd=1.5)
-axis(2, las=1, labels=c("Root surf.", "Root len.", "# tillers", "# leaves","# leaves","Leaf N","Root surf."), at=effect_sizes$y, tick=F, cex.lab=1.3, cex.axis=1.5) 
+axis(2, las=1, labels=c("Root area", "Root len.", "# tillers", "# leaves","# leaves","Leaf N","Root area"), at=effect_sizes$y, tick=F, cex.lab=1.3, cex.axis=1.5) 
 axis(1, at=seq(-2,2,by=0.5), cex.lab=1.3, cex.axis=1.3)
 
 ## 2nb plot: variable importance
@@ -1871,7 +1871,7 @@ monoc_prod_vs_root_surf <- ggplot(monoc_trait_prod, aes(x=SURF_Surface_Projetee_
   geom_point()+
   scale_color_manual(values=c("blue","red"))+
   scale_shape_manual(values=c(16,17))+
-  labs(x = expression("Pure stand root surface (mm"^2*")"),
+  labs(x = expression("Pure stand root projected area (mm"^2*")"),
        y = "Pure stand total biomass (mg)")+
   geom_smooth(method = "lm", fill = NA, show.legend = F)+
   stat_cor(method = "pearson", show.legend = F)+
@@ -1894,7 +1894,7 @@ RY_vs_monoc_surf <- ggplot(blup_mixt, aes(x=monoc_root_surf, y=Total_DW_RY, colo
   geom_point()+
   scale_color_manual(values=c("blue","red"))+
   scale_shape_manual(values=c(16,17))+
-  labs(x =  expression("Pure stand root surface (mm"^2*")"),
+  labs(x =  expression("Pure stand root projected area (mm"^2*")"),
        y = "Total biomass RY")+
   ylim(0.3,0.75)+
   geom_smooth(method = "lm", fill = NA, show.legend = F)+
@@ -1923,7 +1923,7 @@ RY_vs_root_surf_dist <- ggplot(blup_mixt, aes(x=root_surf_dist, y=Total_DW_RY, c
   geom_point()+
   scale_color_manual(values=c("blue","red"))+
   scale_shape_manual(values=c(16,17))+
-  labs(x = "Hierarchical root surface distance (%)",
+  labs(x = "Hierarchical distance on root projected area (%)",
        y = "Total biomass RY")+
   ylim(0.3,0.75)+
   geom_smooth(method = "lm", fill = NA, show.legend = F)+
@@ -1950,13 +1950,13 @@ RYT <- merge(RYT, blup_SURF_mix, by=c("Pair_unoriented","Treatment"))
 
 ##3. Computing root surface plasticity between monocultures and mixtures
 RYT$SURF_Surface_Projetee_mm2_diff <- (RYT$SURF_Surface_Projetee_mm2-RYT$SURF_Surface_Projetee_mm2_avg)/RYT$SURF_Surface_Projetee_mm2_avg
-
+  
 ##4. plotting the relationship between RYT and root surface measured in mixtures
 RYT_vs_surf_plasticity <- ggplot(RYT, aes(x=SURF_Surface_Projetee_mm2_diff, y=Total_DW_RYT, color=Treatment, shape=Treatment))+
   geom_point()+
   scale_color_manual(values=c("blue","red"))+
   scale_shape_manual(values=c(16,17))+
-  labs(x = "Root surface plasticity (%)",
+  labs(x = "Plasticity of root projected area (%)",
        y = "Total biomass RYT")+
   geom_smooth(method = "lm", fill = NA, show.legend = F)+
   stat_cor(method = "pearson", show.legend = F)+
