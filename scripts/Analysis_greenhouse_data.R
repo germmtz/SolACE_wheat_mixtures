@@ -1,6 +1,7 @@
 ### Script to analyze the water status and nutrient solution provisionning of the Rhizotubes
 library(ggplot2)
 library(ggpubr)
+library(cowplot)
 Sys.setlocale("LC_ALL", "English")
 
 
@@ -81,4 +82,4 @@ plot_grid(plotlist=list(p1,p2),
           label_x = 0.00,
           hjust=0)
           
-ggsave("./outputs/plots/FigS1_rhizotube_monitoring.pdf", dpi=300, height=5, width=6)
+ggsave("./outputs/plots/Rhizotube_monitoring.pdf", dpi=300, height=5, width=6)
