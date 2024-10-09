@@ -11,11 +11,11 @@ colnames(nutriC)[2] <- "Dose"
 nutriS <- nutri[c("date","S")]
 colnames(nutriS)[2] <- "Dose"
 nutri <- rbind(nutriC,nutriS)
-nutri$Treatment <- c(rep("C",nrow(nutriC)), rep("S", nrow(nutriS)))
+nutri$Treatment <- c(rep("R+",nrow(nutriC)), rep("R-", nrow(nutriS)))
 summary(nutri)
 date_format <- "%d/%m/%Y %H:%M"
 nutri$date <- as.POSIXct(nutri$date,format = date_format, tz = "GMT")
-nutri$Treatment <- as.factor(nutri$Treatment)
+nutri$Treatment <- factor(nutri$Treatment, levels=c("R+","R-"))
 
 p1 <- ggplot(data=nutri[which(nutri$date>=as.POSIXct("23/06/2019 9:00",format = date_format, tz = "GMT")),], aes(x=date, y=Dose, fill=Treatment))+
   geom_bar(position = position_dodge(), stat="identity", width=25000)+
@@ -44,10 +44,11 @@ colnames(waterC)[2] <- "water_status"
 waterS <- water[c("date","S")]
 colnames(waterS)[2] <- "water_status"
 water <- rbind(waterC,waterS)
-water$Treatment <- c(rep("C",nrow(waterC)), rep("S", nrow(waterS)))
+water$Treatment <- c(rep("R+",nrow(waterC)), rep("R-", nrow(waterS)))
 summary(water)
 date_format <- "%d/%m/%y %H:%M"
 water$date <- as.POSIXct(water$date,format = date_format, tz = "GMT")
+water$Treatment <- factor(water$Treatment, levels=c("R+","R-"))
 
 p2 <- ggplot(aes(x=date, y=water_status, color=Treatment), data=water[which(water$date>=as.POSIXct("23/6/19 9:00",format = date_format, tz = "GMT")),])+
   geom_line()+
