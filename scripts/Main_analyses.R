@@ -14,6 +14,7 @@ library(agricolae)
 library(lmerTest)
 library(glmulti)
 library(ggpubr)
+library(bef)
 
 ####################################
 ### COLOURS ########################
@@ -795,6 +796,7 @@ summary(mod)
 blup_mixt[which(blup_mixt$Treatment=="R+"),"Shoot_DW"] <- fixef(mod)[1]+ranef(mod)$pair[1]
 blup_mixt[which(blup_mixt$Treatment=="R-"),"Shoot_DW"] <- fixef(mod)[1]+fixef(mod)[5]+ranef(mod)$pair[1]+ranef(mod)$pair[2]
 
+
 ## Root_DW
 mod <- lmer(Root_DW ~ Sampling_ID + Block + Treatment + (1+Treatment|pair), data=har_ag_P)
 summary(mod)
@@ -937,7 +939,7 @@ plt_RYT_Shoot <- ggplot(data = RYT, aes(x=Treatment, y=Shoot_DW_RYT, color=Treat
            y=0.6,
            vjust=1,
            label=c(length(na.omit(RYT[which(RYT$Treatment=="R+"),"Shoot_DW_RYT"])), length(na.omit(RYT[which(RYT$Treatment=="R-"),"Shoot_DW_RYT"]))),
-             size=3.5)+
+           size=3.5)+
   annotate("text",
            x=2,
            y=1.35,
@@ -1020,6 +1022,447 @@ plot_grid(plotlist = list(plt_RYT_Total, plt_RYT_Shoot, plt_RYT_Root),
 ggsave("outputs/plots/pot_level_RYT_treatment_effect.pdf", dpi=300, height=4, width=10)
 
 
+### Computing complementarity and selection effects using the additive partitioning from Loreau & Hector (2001) https://www.nature.com/articles/35083573
+
+### Build matrices of expected rys
+ry <- matrix(ncol=length(unique(blup_monoc$Genotype)), nrow=length(unique(RYT[which(RYT$Treatment=="R+"),"Pair_unoriented"])),0)
+colnames(ry) <- blup_monoc[which(blup_monoc$Treatment=="R+"),"Genotype"]
+row.names(ry) <- RYT[which(RYT$Treatment=="R+"),"Pair_unoriented"]
+for (i in c(1:nrow(ry))) {
+  foc <- strsplit(row.names(ry)[i], ";")[[1]][1]
+  nei <- strsplit(row.names(ry)[i], ";")[[1]][2]
+  ry[i,c(foc,nei)] <- 0.5
+}
+
+
+### Building matrices of monoculture yields for the different biomass components in the different treatments
+mono_Shoot_C <- matrix(ncol=length(unique(blup_monoc$Genotype)), nrow=1, blup_monoc[which(blup_monoc$Treatment=="R+"),"Shoot_DW"])
+colnames(mono_Shoot_C) <- blup_monoc[which(blup_monoc$Treatment=="R+"),"Genotype"]
+
+mono_Shoot_S <- matrix(ncol=length(unique(blup_monoc$Genotype)), nrow=1, blup_monoc[which(blup_monoc$Treatment=="R-"),"Shoot_DW"])
+colnames(mono_Shoot_S) <- blup_monoc[which(blup_monoc$Treatment=="R-"),"Genotype"]
+
+mono_Root_C <- matrix(ncol=length(unique(blup_monoc$Genotype)), nrow=1, blup_monoc[which(blup_monoc$Treatment=="R+"),"Root_DW"])
+colnames(mono_Root_C) <- blup_monoc[which(blup_monoc$Treatment=="R+"),"Genotype"]
+
+mono_Root_S <- matrix(ncol=length(unique(blup_monoc$Genotype)), nrow=1, blup_monoc[which(blup_monoc$Treatment=="R-"),"Root_DW"])
+colnames(mono_Root_S) <- blup_monoc[which(blup_monoc$Treatment=="R-"),"Genotype"]
+
+mono_Total_C <- matrix(ncol=length(unique(blup_monoc$Genotype)), nrow=1, blup_monoc[which(blup_monoc$Treatment=="R+"),"Total_DW"])
+colnames(mono_Total_C) <- blup_monoc[which(blup_monoc$Treatment=="R+"),"Genotype"]
+
+mono_Total_S <- matrix(ncol=length(unique(blup_monoc$Genotype)), nrow=1, blup_monoc[which(blup_monoc$Treatment=="R-"),"Total_DW"])
+colnames(mono_Total_S) <- blup_monoc[which(blup_monoc$Treatment=="R-"),"Genotype"]
+
+### Build matrices of observed biomass in mixtures for the different biomass components in the different treatments
+mixt_Shoot_C <- ry
+for (i in c(1:nrow(mixt_Shoot_C))) {
+  foc <- strsplit(row.names(ry)[i], ";")[[1]][1]
+  nei <- strsplit(row.names(ry)[i], ";")[[1]][2]
+  mixt_Shoot_C[i,foc] <- blup_mixt[which(blup_mixt$Treatment=="R+" & blup_mixt$Pair==paste(foc,nei, sep=";")),"Shoot_DW"]
+  mixt_Shoot_C[i,nei] <- blup_mixt[which(blup_mixt$Treatment=="R+" & blup_mixt$Pair==paste(nei,foc, sep=";")),"Shoot_DW"]
+}
+
+mixt_Shoot_S <- ry
+for (i in c(1:nrow(mixt_Shoot_S))) {
+  foc <- strsplit(row.names(ry)[i], ";")[[1]][1]
+  nei <- strsplit(row.names(ry)[i], ";")[[1]][2]
+  mixt_Shoot_S[i,foc] <- blup_mixt[which(blup_mixt$Treatment=="R-" & blup_mixt$Pair==paste(foc,nei, sep=";")),"Shoot_DW"]
+  mixt_Shoot_S[i,nei] <- blup_mixt[which(blup_mixt$Treatment=="R-" & blup_mixt$Pair==paste(nei,foc, sep=";")),"Shoot_DW"]
+}
+
+mixt_Root_C <- ry
+for (i in c(1:nrow(mixt_Root_C))) {
+  foc <- strsplit(row.names(ry)[i], ";")[[1]][1]
+  nei <- strsplit(row.names(ry)[i], ";")[[1]][2]
+  mixt_Root_C[i,foc] <- blup_mixt[which(blup_mixt$Treatment=="R+" & blup_mixt$Pair==paste(foc,nei, sep=";")),"Root_DW"]
+  mixt_Root_C[i,nei] <- blup_mixt[which(blup_mixt$Treatment=="R+" & blup_mixt$Pair==paste(nei,foc, sep=";")),"Root_DW"]
+}
+
+mixt_Root_S <- ry
+for (i in c(1:nrow(mixt_Root_S))) {
+  foc <- strsplit(row.names(ry)[i], ";")[[1]][1]
+  nei <- strsplit(row.names(ry)[i], ";")[[1]][2]
+  mixt_Root_S[i,foc] <- blup_mixt[which(blup_mixt$Treatment=="R-" & blup_mixt$Pair==paste(foc,nei, sep=";")),"Root_DW"]
+  mixt_Root_S[i,nei] <- blup_mixt[which(blup_mixt$Treatment=="R-" & blup_mixt$Pair==paste(nei,foc, sep=";")),"Root_DW"]
+}
+
+mixt_Total_C <- ry
+for (i in c(1:nrow(mixt_Total_C))) {
+  foc <- strsplit(row.names(ry)[i], ";")[[1]][1]
+  nei <- strsplit(row.names(ry)[i], ";")[[1]][2]
+  mixt_Total_C[i,foc] <- blup_mixt[which(blup_mixt$Treatment=="R+" & blup_mixt$Pair==paste(foc,nei, sep=";")),"Total_DW"]
+  mixt_Total_C[i,nei] <- blup_mixt[which(blup_mixt$Treatment=="R+" & blup_mixt$Pair==paste(nei,foc, sep=";")),"Total_DW"]
+}
+
+mixt_Total_S <- ry
+for (i in c(1:nrow(mixt_Total_S))) {
+  foc <- strsplit(row.names(ry)[i], ";")[[1]][1]
+  nei <- strsplit(row.names(ry)[i], ";")[[1]][2]
+  mixt_Total_S[i,foc] <- blup_mixt[which(blup_mixt$Treatment=="R-" & blup_mixt$Pair==paste(foc,nei, sep=";")),"Total_DW"]
+  mixt_Total_S[i,nei] <- blup_mixt[which(blup_mixt$Treatment=="R-" & blup_mixt$Pair==paste(nei,foc, sep=";")),"Total_DW"]
+}
+
+
+### Compute Loreau and Hector additive partitioning for the different biomass components in the two treatments
+apartShootC <- apm(mix=mixt_Shoot_C, mono=mono_Shoot_C,ry=ry, method="loreau")
+apartShootS <- apm(mix=mixt_Shoot_S, mono=mono_Shoot_S,ry=ry, method="loreau")
+apartShoot <- as.data.frame(rbind(apartShootC, apartShootS))
+apartShoot$Treatment <- as.factor(rep(c("R+","R-"), each=54))
+apartShoot$Treatment <- factor(apartShoot$Treatment, levels=c("R+","R-"))
+apartShoot$Pair_unoriented <- as.factor(rep(row.names(apartShootC),2))
+
+apartRootC <- apm(mix=mixt_Root_C, mono=mono_Root_C,ry=ry, method="loreau")
+apartRootS <- apm(mix=mixt_Root_S, mono=mono_Root_S,ry=ry, method="loreau")
+apartRoot <- as.data.frame(rbind(apartRootC, apartRootS))
+apartRoot$Treatment <- as.factor(rep(c("R+","R-"), each=54))
+apartRoot$Treatment <- factor(apartRoot$Treatment, levels=c("R+","R-"))
+apartRoot$Pair_unoriented <- as.factor(rep(row.names(apartRootC),2))
+
+apartTotalC <- apm(mix=mixt_Total_C, mono=mono_Total_C,ry=ry, method="loreau")
+apartTotalS <- apm(mix=mixt_Total_S, mono=mono_Total_S,ry=ry, method="loreau")
+apartTotal <- as.data.frame(rbind(apartTotalC, apartTotalS))
+apartTotal$Treatment <- as.factor(rep(c("R+","R-"), each=54))
+apartTotal$Treatment <- factor(apartTotal$Treatment, levels=c("R+","R-"))
+apartTotal$Pair_unoriented <- as.factor(rep(row.names(apartTotalC),2))
+
+## Statistical analysis
+mod_Shoot_CE <- lmer(CE ~  Treatment + (1|Pair_unoriented), data=apartShoot)
+summary(mod_Shoot_CE) 
+anova(mod_Shoot_CE, ddf = "Kenward-Roger")
+## --> Significant effect  of the treatment on Shoot CE
+
+mod_Shoot_SE <- lmer(SE ~  Treatment + (1|Pair_unoriented), data=apartShoot)
+summary(mod_Shoot_SE) 
+anova(mod_Shoot_SE, ddf = "Kenward-Roger")
+## --> Significant effect  of the treatment on Shoot SE
+
+mod_Shoot_NBE <- lmer(NBE ~  Treatment + (1|Pair_unoriented), data=apartShoot)
+summary(mod_Shoot_NBE) 
+anova(mod_Shoot_NBE, ddf = "Kenward-Roger")
+## --> Significant effect  of the treatment on Shoot NBE
+
+
+mod_Root_CE <- lmer(CE ~  Treatment + (1|Pair_unoriented), data=apartRoot)
+summary(mod_Root_CE) 
+anova(mod_Root_CE, ddf = "Kenward-Roger")
+## --> Significant effect  of the treatment on Root CE
+
+mod_Root_SE <- lmer(SE ~  Treatment + (1|Pair_unoriented), data=apartRoot)
+summary(mod_Root_SE) 
+anova(mod_Root_SE, ddf = "Kenward-Roger")
+## --> No Significant effect  of the treatment on Root SE
+
+mod_Root_NBE <- lmer(NBE ~  Treatment + (1|Pair_unoriented), data=apartRoot)
+summary(mod_Root_NBE) 
+anova(mod_Root_NBE, ddf = "Kenward-Roger")
+## --> Significant effect  of the treatment on Root NBE
+
+
+mod_Total_CE <- lmer(CE ~  Treatment + (1|Pair_unoriented), data=apartTotal)
+summary(mod_Total_CE) 
+anova(mod_Total_CE, ddf = "Kenward-Roger")
+## --> Significant effect  of the treatment on Total CE
+
+mod_Total_SE <- lmer(SE ~  Treatment + (1|Pair_unoriented), data=apartTotal)
+summary(mod_Total_SE) 
+anova(mod_Total_SE, ddf = "Kenward-Roger")
+## --> Significant effect  of the treatment on Total SE
+
+mod_Total_NBE <- lmer(NBE ~  Treatment + (1|Pair_unoriented), data=apartTotal)
+summary(mod_Total_NBE) 
+anova(mod_Total_NBE, ddf = "Kenward-Roger")
+## --> Significant effect  of the treatment on Total NBE
+
+
+## Plotting the effect of the treatment on CE and SE for the different biomass components
+t.test(apartShoot[which(apartShoot$Treatment=="R+"),"CE"],mu=0)
+t.test(apartShoot[which(apartShoot$Treatment=="R-"),"CE"],mu=0)
+
+plt_CE_Shoot <- ggplot(data = apartShoot, aes(x=Treatment, y=CE, color=Treatment)) + 
+  geom_violin(trim = F, size=0.9)+ 
+  stat_summary(fun.data="mean_sdl",
+               fun.args=list(mult=1), 
+               geom="pointrange") +
+  scale_color_manual(values=cols_Treatment, guide="none")+
+  ylim(-400,400)+
+  labs(y = "CE",
+       x = "",
+       title = "Shoot biomass ") +
+  annotate("text",
+           x=c(1:2),
+           y=-400,
+           vjust=1,
+           label=c(length(na.omit(apartShoot[which(apartShoot$Treatment=="R+"),"CE"])), length(na.omit(apartShoot[which(apartShoot$Treatment=="R-"),"CE"]))),
+           size=3.5)+
+  annotate("text",
+           x=2,
+           y=400,
+           vjust=1,
+           label="***",
+           size=6, 
+           color=cols_Treatment[2]) + 
+  geom_hline(yintercept=1, linetype=2)+
+  theme_classic()+
+  theme(plot.title = element_text(hjust = 0.5), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
+
+
+t.test(apartShoot[which(apartShoot$Treatment=="R+"),"SE"],mu=0)
+t.test(apartShoot[which(apartShoot$Treatment=="R-"),"SE"],mu=0)
+
+plt_SE_Shoot <- ggplot(data = apartShoot, aes(x=Treatment, y=SE, color=Treatment)) + 
+  geom_violin(trim = F, size=0.9)+ 
+  stat_summary(fun.data="mean_sdl",
+               fun.args=list(mult=1), 
+               geom="pointrange") +
+  scale_color_manual(values=cols_Treatment, guide="none")+
+  ylim(-70,70)+
+  labs(y = "SE",
+       x = "",
+       title = "Shoot biomass ") +
+  annotate("text",
+           x=c(1:2),
+           y=-70,
+           vjust=1,
+           label=c(length(na.omit(apartShoot[which(apartShoot$Treatment=="R+"),"SE"])), length(na.omit(apartShoot[which(apartShoot$Treatment=="R-"),"SE"]))),
+           size=3.5)+
+  annotate("text",
+           x=2,
+           y=70,
+           vjust=1,
+           label="***",
+           size=6, 
+           color=cols_Treatment[2]) + 
+  geom_hline(yintercept=1, linetype=2)+
+  theme_classic()+
+  theme(plot.title = element_text(hjust = 0.5), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
+
+
+t.test(apartShoot[which(apartShoot$Treatment=="R+"),"NBE"],mu=0)
+t.test(apartShoot[which(apartShoot$Treatment=="R-"),"NBE"],mu=0)
+
+plt_NBE_Shoot <- ggplot(data = apartShoot, aes(x=Treatment, y=NBE, color=Treatment)) + 
+  geom_violin(trim = F, size=0.9)+ 
+  stat_summary(fun.data="mean_sdl",
+               fun.args=list(mult=1), 
+               geom="pointrange") +
+  scale_color_manual(values=cols_Treatment, guide="none")+
+  ylim(-400,400)+
+  labs(y = "NBE",
+       x = "",
+       title = "Shoot biomass ") +
+  annotate("text",
+           x=c(1:2),
+           y=-400,
+           vjust=1,
+           label=c(length(na.omit(apartShoot[which(apartShoot$Treatment=="R+"),"NBE"])), length(na.omit(apartShoot[which(apartShoot$Treatment=="R-"),"NBE"]))),
+           size=3.5)+
+  annotate("text",
+           x=2,
+           y=400,
+           vjust=1,
+           label="***",
+           size=6, 
+           color=cols_Treatment[2]) + 
+  geom_hline(yintercept=1, linetype=2)+
+  theme_classic()+
+  theme(plot.title = element_text(hjust = 0.5), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
+
+
+t.test(apartRoot[which(apartRoot$Treatment=="R+"),"CE"],mu=0)
+t.test(apartRoot[which(apartRoot$Treatment=="R-"),"CE"],mu=0)
+
+plt_CE_Root <- ggplot(data = apartRoot, aes(x=Treatment, y=CE, color=Treatment)) + 
+  geom_violin(trim = F, size=0.9)+ 
+  stat_summary(fun.data="mean_sdl",
+               fun.args=list(mult=1), 
+               geom="pointrange") +
+  scale_color_manual(values=cols_Treatment, guide="none")+
+  ylim(-200,200)+
+  labs(y = "CE",
+       x = "",
+       title = "Root biomass ") +
+  annotate("text",
+           x=c(1:2),
+           y=-200,
+           vjust=1,
+           label=c(length(na.omit(apartRoot[which(apartRoot$Treatment=="R+"),"CE"])), length(na.omit(apartRoot[which(apartRoot$Treatment=="R-"),"CE"]))),
+           size=3.5)+
+  annotate("text",
+           x=2,
+           y=200,
+           vjust=1,
+           label="***",
+           size=6, 
+           color=cols_Treatment[2]) + 
+  geom_hline(yintercept=1, linetype=2)+
+  theme_classic()+
+  theme(plot.title = element_text(hjust = 0.5), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
+
+
+t.test(apartRoot[which(apartRoot$Treatment=="R+"),"SE"],mu=0)
+t.test(apartRoot[which(apartRoot$Treatment=="R-"),"SE"],mu=0)
+
+plt_SE_Root <- ggplot(data = apartRoot, aes(x=Treatment, y=SE, color=Treatment)) + 
+  geom_violin(trim = F, size=0.9)+ 
+  stat_summary(fun.data="mean_sdl",
+               fun.args=list(mult=1), 
+               geom="pointrange") +
+  scale_color_manual(values=cols_Treatment, guide="none")+
+  ylim(-30,20)+
+  labs(y = "SE",
+       x = "",
+       title = "Root biomass ") +
+  annotate("text",
+           x=c(1:2),
+           y=-30,
+           vjust=1,
+           label=c(length(na.omit(apartRoot[which(apartRoot$Treatment=="R+"),"SE"])), length(na.omit(apartRoot[which(apartRoot$Treatment=="R-"),"SE"]))),
+           size=3.5)+
+  annotate("text",
+           x=c(1,2),
+           y=c(20,20),
+           vjust=1,
+           label=c("**","**"),
+           size=6, 
+           color=cols_Treatment) + 
+  geom_hline(yintercept=1, linetype=2)+
+  theme_classic()+
+  theme(plot.title = element_text(hjust = 0.5), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
+
+
+t.test(apartRoot[which(apartRoot$Treatment=="R+"),"NBE"],mu=0)
+t.test(apartRoot[which(apartRoot$Treatment=="R-"),"NBE"],mu=0)
+
+plt_NBE_Root <- ggplot(data = apartRoot, aes(x=Treatment, y=NBE, color=Treatment)) + 
+  geom_violin(trim = F, size=0.9)+ 
+  stat_summary(fun.data="mean_sdl",
+               fun.args=list(mult=1), 
+               geom="pointrange") +
+  scale_color_manual(values=cols_Treatment, guide="none")+
+  ylim(-200,200)+
+  labs(y = "NBE",
+       x = "",
+       title = "Root biomass") +
+  annotate("text",
+           x=c(1:2),
+           y=-200,
+           vjust=1,
+           label=c(length(na.omit(apartRoot[which(apartRoot$Treatment=="R+"),"NBE"])), length(na.omit(apartRoot[which(apartRoot$Treatment=="R-"),"NBE"]))),
+           size=3.5)+
+  annotate("text",
+           x=2,
+           y=200,
+           vjust=1,
+           label="***",
+           size=6, 
+           color=cols_Treatment[2]) + 
+  geom_hline(yintercept=1, linetype=2)+
+  theme_classic()+
+  theme(plot.title = element_text(hjust = 0.5), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
+
+
+t.test(apartTotal[which(apartTotal$Treatment=="R+"),"CE"],mu=0)
+t.test(apartTotal[which(apartTotal$Treatment=="R-"),"CE"],mu=0)
+
+plt_CE_Total <- ggplot(data = apartTotal, aes(x=Treatment, y=CE, color=Treatment)) + 
+  geom_violin(trim = F, size=0.9)+ 
+  stat_summary(fun.data="mean_sdl",
+               fun.args=list(mult=1), 
+               geom="pointrange") +
+  scale_color_manual(values=cols_Treatment, guide="none")+
+  ylim(-600,600)+
+  labs(y = "CE",
+       x = "",
+       title = "Total biomass") +
+  annotate("text",
+           x=c(1:2),
+           y=-600,
+           vjust=1,
+           label=c(length(na.omit(apartTotal[which(apartTotal$Treatment=="R+"),"CE"])), length(na.omit(apartTotal[which(apartTotal$Treatment=="R-"),"CE"]))),
+           size=3.5)+
+  annotate("text",
+           x=2,
+           y=600,
+           vjust=1,
+           label="***",
+           size=6, 
+           color=cols_Treatment[2]) + 
+  geom_hline(yintercept=1, linetype=2)+
+  theme_classic()+
+  theme(plot.title = element_text(hjust = 0.5), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
+
+
+t.test(apartTotal[which(apartTotal$Treatment=="R+"),"SE"],mu=0)
+t.test(apartTotal[which(apartTotal$Treatment=="R-"),"SE"],mu=0)
+
+plt_SE_Total <- ggplot(data = apartTotal, aes(x=Treatment, y=SE, color=Treatment)) + 
+  geom_violin(trim = F, size=0.9)+ 
+  stat_summary(fun.data="mean_sdl",
+               fun.args=list(mult=1), 
+               geom="pointrange") +
+  scale_color_manual(values=cols_Treatment, guide="none")+
+  ylim(-80,70)+
+  labs(y = "SE",
+       x = "",
+       title = "Total biomass") +
+  annotate("text",
+           x=c(1:2),
+           y=-80,
+           vjust=1,
+           label=c(length(na.omit(apartTotal[which(apartTotal$Treatment=="R+"),"SE"])), length(na.omit(apartTotal[which(apartTotal$Treatment=="R-"),"SE"]))),
+           size=3.5)+
+  annotate("text",
+           x=2,
+           y=70,
+           vjust=1,
+           label="***",
+           size=6, 
+           color=cols_Treatment[2]) + 
+  geom_hline(yintercept=1, linetype=2)+
+  theme_classic()+
+  theme(plot.title = element_text(hjust = 0.5), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
+
+
+t.test(apartTotal[which(apartTotal$Treatment=="R+"),"NBE"],mu=0)
+t.test(apartTotal[which(apartTotal$Treatment=="R-"),"NBE"],mu=0)
+
+plt_NBE_Total <- ggplot(data = apartTotal, aes(x=Treatment, y=NBE, color=Treatment)) + 
+  geom_violin(trim = F, size=0.9)+ 
+  stat_summary(fun.data="mean_sdl",
+               fun.args=list(mult=1), 
+               geom="pointrange") +
+  scale_color_manual(values=cols_Treatment, guide="none")+
+  ylim(-600,600)+
+  labs(y = "NBE",
+       x = "",
+       title = "Total biomass") +
+  annotate("text",
+           x=c(1:2),
+           y=-600,
+           vjust=1,
+           label=c(length(na.omit(apartTotal[which(apartTotal$Treatment=="R+"),"NBE"])), length(na.omit(apartTotal[which(apartTotal$Treatment=="R-"),"NBE"]))),
+           size=3.5)+
+  annotate("text",
+           x=2,
+           y=600,
+           vjust=1,
+           label="***",
+           size=6, 
+           color=cols_Treatment[2]) + 
+  geom_hline(yintercept=1, linetype=2)+
+  theme_classic()+
+  theme(plot.title = element_text(hjust = 0.5), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
+
+
+plot_grid(plotlist = list(plt_CE_Shoot, plt_SE_Shoot, plt_NBE_Shoot, plt_CE_Root, plt_SE_Root, plt_NBE_Root, plt_CE_Total, plt_SE_Total, plt_NBE_Total),
+          nrow=3,
+          ncol = 3,
+          labels=c("(a)","(b)","(c)","(d)","(e)","(f)","(g)","(h)","(i)"),
+          label_fontface = "bold",
+          hjust = 0, label_x = 0.01)
+ggsave("outputs/plots/pot_level_Additive_Partitioning.pdf", dpi=300, height=10, width=10)
+
 
 #######################################
 ### IV. EXPLAINING MIXTURES'RYT WITH MONOCULTURE TRAITS 
@@ -1084,7 +1527,8 @@ for (i in c(1:nrow(RYT))) {
   }
 }
 
-##################
+
+########################
 #### Running model averaging ####
 ##################
 
@@ -1614,6 +2058,374 @@ arrows(effect_sizes$Estimate,effect_sizes$y,effect_sizes$ub,effect_sizes$y, code
 arrows(effect_sizes$Estimate,effect_sizes$y,effect_sizes$lb,effect_sizes$y, code=2, angle=90, length=0.03, col=colvec, lwd=2.5)
 points(effect_sizes$Estimate, effect_sizes$y, pch=21, bg=bgvec, col=colvec, cex=1.6, lwd=1.5)
 axis(2, las=1, labels=c("Root area", "Root length", "# tillers", "# leaves","# leaves","Root area"), at=effect_sizes$y, tick=F, cex.lab=1.3, cex.axis=1.5) 
+axis(1, at=seq(-2,2,by=0.5), cex.lab=1.3, cex.axis=1.3)
+
+## 2nb plot: variable importance
+par(mar=c(4,1,1,1))
+barplot(rev(effect_sizes[,"Importance"]),horiz=T, col=rev(colvec), bg=rev(bgvec), xlab="Relative variable importance", space=w, width=1, density = rev(densvec), angle=rev(anglevec), ylim=c(0,nrow(effect_sizes)+2), cex.lab=1.3, cex.axis=1.3)
+
+## plot legend
+
+xlegend = -0.7
+ylegend =-(nrow(effect_sizes)+2)*(1-0.7)
+
+legend(x=xlegend,y=ylegend,legend=c(" "," "), pch=c(19,NA),fill=c(NA,"black"), bty="n", col=c("black","black"), border=c(NA,"black"), xjust=0.2, x.intersp = c(2,0.2), pt.cex = 1.5, cex=1.5, xpd=NA)
+legend(xlegend+0.02,ylegend*1.15, legend="Mean", bty="n", xpd=NA, cex=1.4)
+
+legend(x=xlegend+0.4,y=ylegend,legend=c(" "," "), pch=c(21,NA),fill=c(NA,"black"), bty="n", col=c("black","black"), border=c(NA,"black"), xjust=0.2, x.intersp = c(2,0.2), pt.cex = 1.5, cex=1.5, xpd=NA, density=c(0,20))
+legend(xlegend+0.02+0.4,ylegend*1.15, legend="Diff.", bty="n", xpd=NA, cex=1.4)
+
+legend(x=xlegend+0.7,y=ylegend,legend=c(" "," "), fill=c(cols[1],cols[2]), bty="n", col=c("black","black"), border=c(NA,NA), xjust=0, cex=1.5, xpd=NA)
+legend(x=xlegend+0.7,y=ylegend*1.01,legend=c("Aboveground","Belowground"), fill=c(NA,NA), bty="n", col=c(NA,NA), border=c(NA,NA), xjust=0,cex=1.4, xpd=NA)
+
+dev.off()
+
+
+
+## Total CE - R+ Treatment
+apartTotal <- cbind(apartTotal,RYT[c(6:11,14:17)])
+
+## Subsetting and scaling the data set 
+data_reg <- as.data.frame(scale(apartTotal[which(apartTotal$Treatment=="R+"),c(2,6:15)], center=T, scale = T))
+
+## Running model selection from the full_model with all traits
+full_model <- lm(CE ~ ., data=data_reg)
+gl_multi <- glmulti(full_model, level = 1, crit = aicc, method="l", report = T)
+
+## Retrieving model-averaged estimates based on the top N models and their unconditional sampling variance
+effect_sizes <- coef(gl_multi, select=N, alphaIC=0.05)[seq(nrow(coef(gl_multi, select=N, alphaIC=0.05)),1,-1),]
+effect_sizes <- as.data.frame(effect_sizes[-grep("(Intercept)",row.names(effect_sizes)),])
+effect_sizes <- effect_sizes[order(row.names(effect_sizes), decreasing = F),]
+effect_sizes <- effect_sizes[order(abs(effect_sizes$Estimate), decreasing = T),]
+
+## Retrieving the AICcs and Akaike weights of the top N models. Note that the weights are not computed based on the top N models here, but based on the whole range of models evaluated by the glmulti() function. These weights will be computed again in the next step so that their sum is equal to 1.
+weights <- weightable(gl_multi)
+weights <- weights[c(1:N),]
+
+## Loop to build a table with several information on the top N models (AICc, delta AICc, adjusted R², conditional estimates of predictor's effect, and re-computed weights)
+var_names <- row.names(effect_sizes)
+
+info_model <- data.frame(AICc=NA, delta=NA, R2_adj=NA)
+for (i in 1:nrow(weights)) {
+  info_model[i,"AICc"] <- weights[i,"aicc"] # AICc
+  info_model[i,"delta"] <- weights[i,"aicc"]-min(weights[,"aicc"]) # delta AICc
+  info_model[i,"R2_adj"] <- summary(gl_multi@objects[[i]])$adj.r.squared # Adjusted r²
+  for (j in 1:length(var_names)){
+    info_model[i,var_names[j]] <- coef(gl_multi@objects[[i]])[var_names[j]] # estimates
+  }
+}
+
+Lik <- exp((-1/2)*info_model$delta)
+info_model$weight <- Lik/sum(Lik) # weights
+
+# Re-ordering columns
+info_model <- info_model[,c(2,ncol(info_model),3:(ncol(info_model)-1))]
+write.csv(info_model, file="./outputs/data/model_avg_Total_CE_R+.csv", row.names=F)
+
+######
+### Plots
+########
+
+## Creating an artifical "y" variables to plot results
+effect_sizes$y <- rev(seq(0.5+w,(0.5+w)+(nrow(effect_sizes)-1)*(1+w),(1+w)))
+
+## Computing the upper and lower bounds of confidence intervals for model-averaged estimates
+effect_sizes$ub <- effect_sizes[,"Estimate"]+effect_sizes[,"+/- (alpha=0.05)"]
+effect_sizes$lb <- effect_sizes[,"Estimate"]-effect_sizes[,"+/- (alpha=0.05)"]
+
+## Defining specific vector colors to match the traits retained in the model selection & model averaging procedure
+colvec <- cols[c(2,2,2,1,1,1,1)]
+bgvec <- cols[c(2,4,2,1,1,1,4)]
+densvec <- c(-9,20,-9,-9,-9,-9,20)
+anglevec <- rep(45,length(colvec))
+
+pdf("outputs/plots/Model_selection_Total_DW_CE_R+.pdf", height=3, width=5, pointsize = 0.2)
+
+par(mfrow=c(1,2))
+par(mar=c(4,6,1,1), oma=c(5,2,1,2), lwd=1.5)
+
+# 1st plot: estimates and confidence intervales
+plot(y~Estimate, data=effect_sizes, xlim=c(-2,2), ylim=c(0,nrow(effect_sizes)+2), xlab="Standardized estimates", ylab="", axes=F, cex=1.3, type="n", cex.lab=1.3, cex.axis=1.3)
+abline(v=0, lty=2)
+arrows(effect_sizes$Estimate,effect_sizes$y,effect_sizes$ub,effect_sizes$y, code=2, angle=90, length=0.03, col=colvec, lwd=2.5)
+arrows(effect_sizes$Estimate,effect_sizes$y,effect_sizes$lb,effect_sizes$y, code=2, angle=90, length=0.03, col=colvec, lwd=2.5)
+points(effect_sizes$Estimate, effect_sizes$y, pch=21, bg=bgvec, col=colvec, cex=1.6, lwd=1.5)
+axis(2, las=1, labels=c("Root area","Root area","Root length","# leaves","Leaf N","# tillers", "Leaf N"), at=effect_sizes$y, tick=F, cex.lab=1.3, cex.axis=1.5) 
+axis(1, at=seq(-2,2,by=0.5), cex.lab=1.3, cex.axis=1.3)
+
+## 2nb plot: variable importance
+par(mar=c(4,1,1,1))
+barplot(rev(effect_sizes[,"Importance"]),horiz=T, col=rev(colvec), bg=rev(bgvec), xlab="Relative variable importance", space=w, width=1, density = rev(densvec), angle=rev(anglevec), ylim=c(0,nrow(effect_sizes)+2), cex.lab=1.3, cex.axis=1.3)
+
+## plot legend
+
+xlegend = -0.7
+ylegend =-(nrow(effect_sizes)+2)*(1-0.7)
+
+legend(x=xlegend,y=ylegend,legend=c(" "," "), pch=c(19,NA),fill=c(NA,"black"), bty="n", col=c("black","black"), border=c(NA,"black"), xjust=0.2, x.intersp = c(2,0.2), pt.cex = 1.5, cex=1.5, xpd=NA)
+legend(xlegend+0.02,ylegend*1.15, legend="Mean", bty="n", xpd=NA, cex=1.4)
+
+legend(x=xlegend+0.4,y=ylegend,legend=c(" "," "), pch=c(21,NA),fill=c(NA,"black"), bty="n", col=c("black","black"), border=c(NA,"black"), xjust=0.2, x.intersp = c(2,0.2), pt.cex = 1.5, cex=1.5, xpd=NA, density=c(0,20))
+legend(xlegend+0.02+0.4,ylegend*1.15, legend="Diff.", bty="n", xpd=NA, cex=1.4)
+
+legend(x=xlegend+0.7,y=ylegend,legend=c(" "," "), fill=c(cols[1],cols[2]), bty="n", col=c("black","black"), border=c(NA,NA), xjust=0, cex=1.5, xpd=NA)
+legend(x=xlegend+0.7,y=ylegend*1.01,legend=c("Aboveground","Belowground"), fill=c(NA,NA), bty="n", col=c(NA,NA), border=c(NA,NA), xjust=0,cex=1.4, xpd=NA)
+
+dev.off()
+
+
+## Total SE - R+ Treatment
+
+## Subsetting and scaling the data set 
+data_reg <- as.data.frame(scale(apartTotal[which(apartTotal$Treatment=="R+"),c(3,6:15)], center=T, scale = T))
+
+## Running model selection from the full_model with all traits
+full_model <- lm(SE ~ ., data=data_reg)
+gl_multi <- glmulti(full_model, level = 1, crit = aicc, method="l", report = T)
+
+## Retrieving model-averaged estimates based on the top N models and their unconditional sampling variance
+effect_sizes <- coef(gl_multi, select=N, alphaIC=0.05)[seq(nrow(coef(gl_multi, select=N, alphaIC=0.05)),1,-1),]
+effect_sizes <- as.data.frame(effect_sizes[-grep("(Intercept)",row.names(effect_sizes)),])
+effect_sizes <- effect_sizes[order(row.names(effect_sizes), decreasing = F),]
+effect_sizes <- effect_sizes[order(abs(effect_sizes$Estimate), decreasing = T),]
+
+## Retrieving the AICcs and Akaike weights of the top N models. Note that the weights are not computed based on the top N models here, but based on the whole range of models evaluated by the glmulti() function. These weights will be computed again in the next step so that their sum is equal to 1.
+weights <- weightable(gl_multi)
+weights <- weights[c(1:N),]
+
+## Loop to build a table with several information on the top N models (AICc, delta AICc, adjusted R², conditional estimates of predictor's effect, and re-computed weights)
+var_names <- row.names(effect_sizes)
+
+info_model <- data.frame(AICc=NA, delta=NA, R2_adj=NA)
+for (i in 1:nrow(weights)) {
+  info_model[i,"AICc"] <- weights[i,"aicc"] # AICc
+  info_model[i,"delta"] <- weights[i,"aicc"]-min(weights[,"aicc"]) # delta AICc
+  info_model[i,"R2_adj"] <- summary(gl_multi@objects[[i]])$adj.r.squared # Adjusted r²
+  for (j in 1:length(var_names)){
+    info_model[i,var_names[j]] <- coef(gl_multi@objects[[i]])[var_names[j]] # estimates
+  }
+}
+
+Lik <- exp((-1/2)*info_model$delta)
+info_model$weight <- Lik/sum(Lik) # weights
+
+# Re-ordering columns
+info_model <- info_model[,c(2,ncol(info_model),3:(ncol(info_model)-1))]
+write.csv(info_model, file="./outputs/data/model_avg_Total_SE_R+.csv", row.names=F)
+
+######
+### Plots
+########
+
+## Creating an artifical "y" variables to plot results
+effect_sizes$y <- rev(seq(0.5+w,(0.5+w)+(nrow(effect_sizes)-1)*(1+w),(1+w)))
+
+## Computing the upper and lower bounds of confidence intervals for model-averaged estimates
+effect_sizes$ub <- effect_sizes[,"Estimate"]+effect_sizes[,"+/- (alpha=0.05)"]
+effect_sizes$lb <- effect_sizes[,"Estimate"]-effect_sizes[,"+/- (alpha=0.05)"]
+
+## Defining specific vector colors to match the traits retained in the model selection & model averaging procedure
+colvec <- cols[c(2,2,1,1,1,1,2,2,1,1)]
+bgvec <- cols[c(2,2,1,4,1,1,4,4,4,4)]
+densvec <- c(-9,-9,-9,20,-9,-9,20,20,20,20)
+anglevec <- rep(45,length(colvec))
+
+pdf("outputs/plots/Model_selection_Total_DW_SE_R+.pdf", height=3, width=5, pointsize = 0.2)
+
+par(mfrow=c(1,2))
+par(mar=c(4,6,1,1), oma=c(5,2,1,2), lwd=1.5)
+
+# 1st plot: estimates and confidence intervales
+plot(y~Estimate, data=effect_sizes, xlim=c(-2,2), ylim=c(0,nrow(effect_sizes)+2), xlab="Standardized estimates", ylab="", axes=F, cex=1.3, type="n", cex.lab=1.3, cex.axis=1.3)
+abline(v=0, lty=2)
+arrows(effect_sizes$Estimate,effect_sizes$y,effect_sizes$ub,effect_sizes$y, code=2, angle=90, length=0.03, col=colvec, lwd=2.5)
+arrows(effect_sizes$Estimate,effect_sizes$y,effect_sizes$lb,effect_sizes$y, code=2, angle=90, length=0.03, col=colvec, lwd=2.5)
+points(effect_sizes$Estimate, effect_sizes$y, pch=21, bg=bgvec, col=colvec, cex=1.6, lwd=1.5)
+axis(2, las=1, labels=c("Root length","Root area","# leaves","Leaf N","# tillers","Leaf N","Root area", "Root length","# leaves","# tillers" ), at=effect_sizes$y, tick=F, cex.lab=1.3, cex.axis=1.5) 
+axis(1, at=seq(-2,2,by=0.5), cex.lab=1.3, cex.axis=1.3)
+
+## 2nb plot: variable importance
+par(mar=c(4,1,1,1))
+barplot(rev(effect_sizes[,"Importance"]),horiz=T, col=rev(colvec), bg=rev(bgvec), xlab="Relative variable importance", space=w, width=1, density = rev(densvec), angle=rev(anglevec), ylim=c(0,nrow(effect_sizes)+2), cex.lab=1.3, cex.axis=1.3)
+
+## plot legend
+
+xlegend = -0.7
+ylegend =-(nrow(effect_sizes)+2)*(1-0.7)
+
+legend(x=xlegend,y=ylegend,legend=c(" "," "), pch=c(19,NA),fill=c(NA,"black"), bty="n", col=c("black","black"), border=c(NA,"black"), xjust=0.2, x.intersp = c(2,0.2), pt.cex = 1.5, cex=1.5, xpd=NA)
+legend(xlegend+0.02,ylegend*1.15, legend="Mean", bty="n", xpd=NA, cex=1.4)
+
+legend(x=xlegend+0.4,y=ylegend,legend=c(" "," "), pch=c(21,NA),fill=c(NA,"black"), bty="n", col=c("black","black"), border=c(NA,"black"), xjust=0.2, x.intersp = c(2,0.2), pt.cex = 1.5, cex=1.5, xpd=NA, density=c(0,20))
+legend(xlegend+0.02+0.4,ylegend*1.15, legend="Diff.", bty="n", xpd=NA, cex=1.4)
+
+legend(x=xlegend+0.7,y=ylegend,legend=c(" "," "), fill=c(cols[1],cols[2]), bty="n", col=c("black","black"), border=c(NA,NA), xjust=0, cex=1.5, xpd=NA)
+legend(x=xlegend+0.7,y=ylegend*1.01,legend=c("Aboveground","Belowground"), fill=c(NA,NA), bty="n", col=c(NA,NA), border=c(NA,NA), xjust=0,cex=1.4, xpd=NA)
+
+dev.off()
+
+
+
+## Total CE - R- Treatment
+
+## Subsetting and scaling the data set 
+data_reg <- as.data.frame(scale(apartTotal[which(apartTotal$Treatment=="R-"),c(2,6:15)], center=T, scale = T))
+
+## Running model selection from the full_model with all traits
+full_model <- lm(CE ~ ., data=data_reg)
+gl_multi <- glmulti(full_model, level = 1, crit = aicc, method="l", report = T)
+
+## Retrieving model-averaged estimates based on the top N models and their unconditional sampling variance
+effect_sizes <- coef(gl_multi, select=N, alphaIC=0.05)[seq(nrow(coef(gl_multi, select=N, alphaIC=0.05)),1,-1),]
+effect_sizes <- as.data.frame(effect_sizes[-grep("(Intercept)",row.names(effect_sizes)),])
+effect_sizes <- effect_sizes[order(row.names(effect_sizes), decreasing = F),]
+effect_sizes <- effect_sizes[order(abs(effect_sizes$Estimate), decreasing = T),]
+
+## Retrieving the AICcs and Akaike weights of the top N models. Note that the weights are not computed based on the top N models here, but based on the whole range of models evaluated by the glmulti() function. These weights will be computed again in the next step so that their sum is equal to 1.
+weights <- weightable(gl_multi)
+weights <- weights[c(1:N),]
+
+## Loop to build a table with several information on the top N models (AICc, delta AICc, adjusted R², conditional estimates of predictor's effect, and re-computed weights)
+var_names <- row.names(effect_sizes)
+
+info_model <- data.frame(AICc=NA, delta=NA, R2_adj=NA)
+for (i in 1:nrow(weights)) {
+  info_model[i,"AICc"] <- weights[i,"aicc"] # AICc
+  info_model[i,"delta"] <- weights[i,"aicc"]-min(weights[,"aicc"]) # delta AICc
+  info_model[i,"R2_adj"] <- summary(gl_multi@objects[[i]])$adj.r.squared # Adjusted r²
+  for (j in 1:length(var_names)){
+    info_model[i,var_names[j]] <- coef(gl_multi@objects[[i]])[var_names[j]] # estimates
+  }
+}
+
+Lik <- exp((-1/2)*info_model$delta)
+info_model$weight <- Lik/sum(Lik) # weights
+
+# Re-ordering columns
+info_model <- info_model[,c(2,ncol(info_model),3:(ncol(info_model)-1))]
+write.csv(info_model, file="./outputs/data/model_avg_Total_CE_R-.csv", row.names=F)
+
+######
+### Plots
+########
+
+## Creating an artifical "y" variables to plot results
+effect_sizes$y <- rev(seq(0.5+w,(0.5+w)+(nrow(effect_sizes)-1)*(1+w),(1+w)))
+
+## Computing the upper and lower bounds of confidence intervals for model-averaged estimates
+effect_sizes$ub <- effect_sizes[,"Estimate"]+effect_sizes[,"+/- (alpha=0.05)"]
+effect_sizes$lb <- effect_sizes[,"Estimate"]-effect_sizes[,"+/- (alpha=0.05)"]
+
+## Defining specific vector colors to match the traits retained in the model selection & model averaging procedure
+colvec <- cols[c(2,2,1,1,1,2)]
+bgvec <- cols[c(2,2,4,1,1,4)]
+densvec <- c(-9,-9,20,-9,-9,20)
+anglevec <- rep(45,length(colvec))
+
+pdf("outputs/plots/Model_selection_Total_DW_CE_R-.pdf", height=3, width=5, pointsize = 0.2)
+
+par(mfrow=c(1,2))
+par(mar=c(4,6,1,1), oma=c(5,2,1,2), lwd=1.5)
+
+# 1st plot: estimates and confidence intervales
+plot(y~Estimate, data=effect_sizes, xlim=c(-2,2), ylim=c(0,nrow(effect_sizes)+2), xlab="Standardized estimates", ylab="", axes=F, cex=1.3, type="n", cex.lab=1.3, cex.axis=1.3)
+abline(v=0, lty=2)
+arrows(effect_sizes$Estimate,effect_sizes$y,effect_sizes$ub,effect_sizes$y, code=2, angle=90, length=0.03, col=colvec, lwd=2.5)
+arrows(effect_sizes$Estimate,effect_sizes$y,effect_sizes$lb,effect_sizes$y, code=2, angle=90, length=0.03, col=colvec, lwd=2.5)
+points(effect_sizes$Estimate, effect_sizes$y, pch=21, bg=bgvec, col=colvec, cex=1.6, lwd=1.5)
+axis(2, las=1, labels=c("Root area", "Root length","# leaves","# tillers","# leaves","Root area"), at=effect_sizes$y, tick=F, cex.lab=1.3, cex.axis=1.5) 
+axis(1, at=seq(-2,2,by=0.5), cex.lab=1.3, cex.axis=1.3)
+
+## 2nb plot: variable importance
+par(mar=c(4,1,1,1))
+barplot(rev(effect_sizes[,"Importance"]),horiz=T, col=rev(colvec), bg=rev(bgvec), xlab="Relative variable importance", space=w, width=1, density = rev(densvec), angle=rev(anglevec), ylim=c(0,nrow(effect_sizes)+2), cex.lab=1.3, cex.axis=1.3)
+
+## plot legend
+
+xlegend = -0.7
+ylegend =-(nrow(effect_sizes)+2)*(1-0.7)
+
+legend(x=xlegend,y=ylegend,legend=c(" "," "), pch=c(19,NA),fill=c(NA,"black"), bty="n", col=c("black","black"), border=c(NA,"black"), xjust=0.2, x.intersp = c(2,0.2), pt.cex = 1.5, cex=1.5, xpd=NA)
+legend(xlegend+0.02,ylegend*1.15, legend="Mean", bty="n", xpd=NA, cex=1.4)
+
+legend(x=xlegend+0.4,y=ylegend,legend=c(" "," "), pch=c(21,NA),fill=c(NA,"black"), bty="n", col=c("black","black"), border=c(NA,"black"), xjust=0.2, x.intersp = c(2,0.2), pt.cex = 1.5, cex=1.5, xpd=NA, density=c(0,20))
+legend(xlegend+0.02+0.4,ylegend*1.15, legend="Diff.", bty="n", xpd=NA, cex=1.4)
+
+legend(x=xlegend+0.7,y=ylegend,legend=c(" "," "), fill=c(cols[1],cols[2]), bty="n", col=c("black","black"), border=c(NA,NA), xjust=0, cex=1.5, xpd=NA)
+legend(x=xlegend+0.7,y=ylegend*1.01,legend=c("Aboveground","Belowground"), fill=c(NA,NA), bty="n", col=c(NA,NA), border=c(NA,NA), xjust=0,cex=1.4, xpd=NA)
+
+dev.off()
+
+
+
+## Total SE - R- Treatment
+
+## Subsetting and scaling the data set 
+data_reg <- as.data.frame(scale(apartTotal[which(apartTotal$Treatment=="R-"),c(3,6:15)], center=T, scale = T))
+
+## Running model selection from the full_model with all traits
+full_model <- lm(SE ~ ., data=data_reg)
+gl_multi <- glmulti(full_model, level = 1, crit = aicc, method="l", report = T)
+
+## Retrieving model-averaged estimates based on the top N models and their unconditional sampling variance
+effect_sizes <- coef(gl_multi, select=N, alphaIC=0.05)[seq(nrow(coef(gl_multi, select=N, alphaIC=0.05)),1,-1),]
+effect_sizes <- as.data.frame(effect_sizes[-grep("(Intercept)",row.names(effect_sizes)),])
+effect_sizes <- effect_sizes[order(row.names(effect_sizes), decreasing = F),]
+effect_sizes <- effect_sizes[order(abs(effect_sizes$Estimate), decreasing = T),]
+
+## Retrieving the AICcs and Akaike weights of the top N models. Note that the weights are not computed based on the top N models here, but based on the whole range of models evaluated by the glmulti() function. These weights will be computed again in the next step so that their sum is equal to 1.
+weights <- weightable(gl_multi)
+weights <- weights[c(1:N),]
+
+## Loop to build a table with several information on the top N models (AICc, delta AICc, adjusted R², conditional estimates of predictor's effect, and re-computed weights)
+var_names <- row.names(effect_sizes)
+
+info_model <- data.frame(AICc=NA, delta=NA, R2_adj=NA)
+for (i in 1:nrow(weights)) {
+  info_model[i,"AICc"] <- weights[i,"aicc"] # AICc
+  info_model[i,"delta"] <- weights[i,"aicc"]-min(weights[,"aicc"]) # delta AICc
+  info_model[i,"R2_adj"] <- summary(gl_multi@objects[[i]])$adj.r.squared # Adjusted r²
+  for (j in 1:length(var_names)){
+    info_model[i,var_names[j]] <- coef(gl_multi@objects[[i]])[var_names[j]] # estimates
+  }
+}
+
+Lik <- exp((-1/2)*info_model$delta)
+info_model$weight <- Lik/sum(Lik) # weights
+
+# Re-ordering columns
+info_model <- info_model[,c(2,ncol(info_model),3:(ncol(info_model)-1))]
+write.csv(info_model, file="./outputs/data/model_avg_Total_SE_R-.csv", row.names=F)
+
+######
+### Plots
+########
+
+## Creating an artifical "y" variables to plot results
+effect_sizes$y <- rev(seq(0.5+w,(0.5+w)+(nrow(effect_sizes)-1)*(1+w),(1+w)))
+
+## Computing the upper and lower bounds of confidence intervals for model-averaged estimates
+effect_sizes$ub <- effect_sizes[,"Estimate"]+effect_sizes[,"+/- (alpha=0.05)"]
+effect_sizes$lb <- effect_sizes[,"Estimate"]-effect_sizes[,"+/- (alpha=0.05)"]
+
+## Defining specific vector colors to match the traits retained in the model selection & model averaging procedure
+colvec <- cols[c(2,2,1,1,1,1,1,1,2,2)]
+bgvec <- cols[c(4,4,4,4,1,1,1,4,2,2)]
+densvec <- c(20,20,20,20,-9,-9,-9,20,-9,-9)
+anglevec <- rep(45,length(colvec))
+
+pdf("outputs/plots/Model_selection_Total_DW_SE_R-.pdf", height=3, width=5, pointsize = 0.2)
+
+par(mfrow=c(1,2))
+par(mar=c(4,6,1,1), oma=c(5,2,1,2), lwd=1.5)
+
+# 1st plot: estimates and confidence intervales
+plot(y~Estimate, data=effect_sizes, xlim=c(-2,2), ylim=c(0,nrow(effect_sizes)+2), xlab="Standardized estimates", ylab="", axes=F, cex=1.3, type="n", cex.lab=1.3, cex.axis=1.3)
+abline(v=0, lty=2)
+arrows(effect_sizes$Estimate,effect_sizes$y,effect_sizes$ub,effect_sizes$y, code=2, angle=90, length=0.03, col=colvec, lwd=2.5)
+arrows(effect_sizes$Estimate,effect_sizes$y,effect_sizes$lb,effect_sizes$y, code=2, angle=90, length=0.03, col=colvec, lwd=2.5)
+points(effect_sizes$Estimate, effect_sizes$y, pch=21, bg=bgvec, col=colvec, cex=1.6, lwd=1.5)
+axis(2, las=1, labels=c("Root area", "Root length","Leaf N","# leaves","# tillers","# leaves","Leaf N","# tillers", "Root length",  "Root area"), at=effect_sizes$y, tick=F, cex.lab=1.3, cex.axis=1.5) 
 axis(1, at=seq(-2,2,by=0.5), cex.lab=1.3, cex.axis=1.3)
 
 ## 2nb plot: variable importance
