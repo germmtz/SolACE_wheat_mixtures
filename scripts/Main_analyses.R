@@ -1464,6 +1464,7 @@ plot_grid(plotlist = list(plt_CE_Shoot, plt_SE_Shoot, plt_NBE_Shoot, plt_CE_Root
 ggsave("outputs/plots/pot_level_Additive_Partitioning.pdf", dpi=300, height=10, width=10)
 
 
+
 #######################################
 ### IV. EXPLAINING MIXTURES'RYT WITH MONOCULTURE TRAITS 
 #######################################
