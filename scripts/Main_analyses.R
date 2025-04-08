@@ -625,7 +625,7 @@ plt_SURF_Surface_Projetee_mm2 <- ggplot(data = all_trait_M, aes(x=Treatment, y=S
 plot_grid(plotlist = list(plt_Total_DW, plt_Shoot_DW, plt_Root_DW, plt_leaf, plt_tiller, plt_leafN, plt_RSratio, plt_SPUR_Squelette_Corrige_mm, plt_SURF_Surface_Projetee_mm2),
           nrow=3,
           ncol = 3, 
-          labels=c("(a)","(b)","(c)","(d)","(e)","(f)","(g)","(h)","(i)"),
+          labels=c("(A)","(B)","(C)","(D)","(E)","(F)","(G)","(H)","(I)"),
           label_fontface = "bold",
           hjust = 0, label_x = 0.01)
 ggsave("outputs/plots/pot_level_treatment_effect.pdf", dpi=300, height=8, width=8)
@@ -1016,7 +1016,7 @@ plt_RYT_Total <- ggplot(data = RYT, aes(x=Treatment, y=Total_DW_RYT, color=Treat
 plot_grid(plotlist = list(plt_RYT_Total, plt_RYT_Shoot, plt_RYT_Root),
           nrow=1,
           ncol = 3,
-          labels=c("(a)","(b)","(c)"),
+          labels=c("(A)","(B)","(C)"),
           label_fontface = "bold",
           hjust = 0, label_x = 0.01)
 ggsave("outputs/plots/pot_level_RYT_treatment_effect.pdf", dpi=300, height=4, width=10)
@@ -1455,13 +1455,13 @@ plt_NBE_Total <- ggplot(data = apartTotal, aes(x=Treatment, y=NBE, color=Treatme
   theme(plot.title = element_text(hjust = 0.5), axis.text.x= element_text(size=rel(1.5), margin=margin(t=1)), axis.text.y= element_text(size=rel(1.5)), axis.title.x= element_text(size=rel(1.2)), axis.title.y= element_text(size=rel(1.2)))
 
 
-plot_grid(plotlist = list(plt_CE_Shoot, plt_SE_Shoot, plt_NBE_Shoot, plt_CE_Root, plt_SE_Root, plt_NBE_Root, plt_CE_Total, plt_SE_Total, plt_NBE_Total),
+plot_grid(plotlist = list(plt_CE_Shoot, plt_SE_Shoot, plt_CE_Root, plt_SE_Root, plt_CE_Total, plt_SE_Total),
           nrow=3,
-          ncol = 3,
-          labels=c("(a)","(b)","(c)","(d)","(e)","(f)","(g)","(h)","(i)"),
+          ncol = 2,
+          labels=c("(A)","(B)","(C)","(D)","(E)","(F)"),
           label_fontface = "bold",
           hjust = 0, label_x = 0.01)
-ggsave("outputs/plots/pot_level_Additive_Partitioning.pdf", dpi=300, height=10, width=10)
+ggsave("outputs/plots/pot_level_Additive_Partitioning.pdf", dpi=300, height=10, width=6)
 
 
 
@@ -2579,7 +2579,7 @@ anova(mod)
 ggarrange(monoc_prod_vs_root_surf, RY_vs_monoc_surf, RY_vs_root_surf_dist,RYT_vs_surf_plasticity,
           nrow=2,
           ncol=2,
-          labels=c("(a)","(b)","(c)","(d)"),
+          labels=c("(A)","(B)","(C)","(D)"),
           hjust=0,
           vjust=0.5,
           font.label = list(size = 14, color = "black", face = "bold"),
